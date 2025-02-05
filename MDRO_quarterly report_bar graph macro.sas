@@ -13,7 +13,7 @@ Format guide: Arial font, 10pt size, and bold axes labels.
 */
 
 
-%macro bar_mdro (group=, set=, title=);
+%macro bar_mdro (group=, set=, title=, order=); /*Added display order so we have unknown, missing at the end of each display where applicable*/
 ods graphics /noborder;
 
 proc sgplot data=SASdata.&set noborder noautolegend;
@@ -21,7 +21,9 @@ proc sgplot data=SASdata.&set noborder noautolegend;
 
 	xaxis label = &title 
 		valueattrs= (family="Arial" size=10)
-		labelattrs= (family="Arial" weight= bold size=10); 
+		labelattrs= (family="Arial" weight= bold size=10)
+			values=(&order); 
+
 	yaxis label = 'Number of cases'
 		valueattrs= (family="Arial" size=10)
 		labelattrs= (family="Arial" weight=bold size=10);
@@ -137,62 +139,17 @@ run;
 
 ods graphics /noborder;
 
-
-proc freq data=equity_plots; tables rurality /norow nocol nopercent;run;
-proc contents data=equity_plots order=varnum;run;
-
-title; footnote;
-/*Set your output pathway here*/
-ods excel file="C:\Users\mhoskins1\Desktop\Work Files\MDRO_Graphs.xlsx";*<----- Named a generic overwriteable name so we can continue to reproduce and autopopulate a template;
-
-ods excel options (sheet_interval = "none" sheet_name = "graphs" embedded_titles='Yes');
-/*Demographic Plots*/
-%bar_mdro(set=disease_sum, group=type, title="Classification");
-%bar_mdro(set=plots, group=gender, title="Gender");
-%bar_mdro(set=plots, group=race1, title="Race");
-%bar_mdro(set=plots, group=hispanic, title="Hispanic Ethnicity");
-%bar_mdro(set=plots, group=age_group, title="Age Group");
-
-/*Equity Plots*/
-%bar_mdro(set=equity_plots, group=travel, title="History of Travel");
-%bar_mdro(set=equity_plots, group=hospitalized_new, title="Hospitalization Status");
-%bar_mdro(set=equity_plots, group=hce_plot, title="Healthcare Experience");
-%bar_mdro(set=equity_plots, group=screening_event, title="MDRO Identified in Screening");
-
-
-/*SVI/Density incidence rate by race*/
-/*Part III from above: Write out each panel graph subgrouping SVI high vs. low and Density rural vs. non-rural by race*/
-proc sgpanel data=graphs_data_density noautolegend;
-
-panelby rural_id  / uniscale = row novarname ;
-format rural_id rural_id. _LABEL_ $_LABEL_.;
-
-vbarparm category=_LABEL_ response=ir_val / groupdisplay=cluster 		
-    group=rural_id nooutline;
-	
-	colaxis label="Race" valueattrs= (family="Arial"  size=10)
-		valueattrs= (family="Arial" size=10)
-		labelattrs= (family="Arial" weight=bold size=10);
-
-  	rowaxis label="IR/100K" valueattrs= (family="Arial"  size=10) 		
-		valueattrs= (family="Arial" size=10)
-		labelattrs= (family="Arial" weight=bold size=10);;
-
-	styleattrs datacolors= (vligb mogb) ;
-	
-	where rural_id not in (.);
-run;
-
-
-
+/*Macro for SVI and rurality, a little different since it's a panel graph*/
+/*Added macro #2 2/5/2025*/
+%macro bar_mdro_2 (group=, label=);
 
 proc sgpanel data=graphs_data_density noautolegend;
 
-panelby sviHI_id  / uniscale = row novarname ;
-format sviHI_id sviHI_id. _LABEL_ $_LABEL_.;
+panelby &group  / uniscale = row novarname ;
+format &group &label _LABEL_ $_LABEL_.;
 
 vbarparm category=_LABEL_ response=ir_val / groupdisplay=cluster 
-    group=sviHI_id nooutline;
+    group=&group nooutline;
 	
 	colaxis label="Race" valueattrs= (family="Arial" size=10)
 		valueattrs= (family="Arial" size=10)
@@ -204,29 +161,38 @@ vbarparm category=_LABEL_ response=ir_val / groupdisplay=cluster
 
 	styleattrs datacolors= (vligb mogb) ;
 
-	where sviHI_id not in (.) ;
+	where &group not in (.) ;
 run;
+%mend bar_mdro_2;
+
+
+ods graphics /noborder;
+
+
+
+title; footnote;
+/*Set your output pathway here*/
+ods excel file="C:\Users\mhoskins1\Desktop\Work Files\MDRO_Graphs.xlsx";*<----- Named a generic overwriteable name so we can continue to reproduce and autopopulate a template;
+
+ods excel options (sheet_interval = "none" sheet_name = "graphs" embedded_titles='Yes');
+/*Demographic Plots*/
+%bar_mdro(set=disease_sum, group=type, order="CRE" "CAURIS" , title="Classification");
+/*%bar_mdro(set=plots, group=gender, order= , title="Gender");*/
+%bar_mdro(set=plots, group=race1, order="American Indian Alaskan Native" "Asian" "Black or African American" "White" "Unknown", title="Race");
+/*%bar_mdro(set=plots, group=hispanic, order= , title="Hispanic Ethnicity");*/
+%bar_mdro(set=plots, group=age_group, order="0-04" "05-17" "18-24" "25-49" "50-64" "65+" , title="Age Group");
+
+/*Equity Plots*/
+%bar_mdro(set=equity_plots, group=travel, order="Yes" "No" "Unknown" "Missing", title="History of Travel");
+%bar_mdro(set=equity_plots, group=hospitalized_new, order="Yes" "No" "Unknown", title="Hospitalization Status");
+%bar_mdro(set=equity_plots, group=hce_plot, order="Acute Care Hospital" "LTACH" "LTCF" "None" "Surgery/Hemodialysis/Other Surg." "Unknown" "Missing", title="Healthcare Experience");
+
+/*Rural and SVI Plots*/
+%bar_mdro_2 (group=rural_id, label=rural_id.);
+%bar_mdro_2 (group=sviHI_id, label=sviHI_id.);
 
 ods excel close;
 
-
-
-
-
-proc print data=final_combined_mechanism noobs label;run;
-
-
-proc print data=final_combined_race noobs label;run;
-proc print data=final_combined_eth noobs label;run;
-proc print data=final_combined_gender noobs label;run;
-proc print data=final_combined_age noobs label;run;
-
-proc contents data=;run;
-
-proc univariate data=combine_qtr_ir ;
-    var points;
-    histogram points;
-run;
 
 
 
