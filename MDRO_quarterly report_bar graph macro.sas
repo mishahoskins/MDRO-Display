@@ -6,48 +6,14 @@ options compress=yes;
 options nofmterr;
 title;footnote;
 
-/*Wrote this into a macro because lazy. No need to repeat the same sgplot 9+ times
-
-Format guide: Arial font, 10pt size, and bold axes labels.
-
-*/
-
-
-%macro bar_mdro (group=, set=, title=, order=); /*Added display order so we have unknown, missing at the end of each display where applicable*/
-ods graphics /noborder;
-
-proc sgplot data=SASdata.&set noborder noautolegend;
-	vbar &group / barwidth=.5 group=&group nooutline;
-
-	xaxis label = &title 
-		valueattrs= (family="Arial" size=10)
-		labelattrs= (family="Arial" weight= bold size=10)
-			values=(&order); 
-
-	yaxis label = 'Number of cases'
-		valueattrs= (family="Arial" size=10)
-		labelattrs= (family="Arial" weight=bold size=10);
-
-		where testreportqtr <= '01jan2024'd and type ~= 'STRA';
-		styleattrs datacolors= (vligb mogb ligb dagb pab grb libgr);	/*From: http://ftp.sas.com/techsup/download/graph/color_list.pdf
-																				page 8 for greenscale colors used. Can use other 
-																				scales/combinations but consitency would be beneficial*/
-
-
-run;
-title;
-
-
-%mend bar_mdro;
- 
-
-
-
-/*Second part are the SVI/Density graphs by race, these are a little tricky so left them out of the macro and just stuck them in the output*/
+/*Second part (macro "bar_mdro_2" is the SVI/Density graphs by race, these are slightly more involved since they're panel displays. Still not too bad and provide
+some grouping aspect to our SVI and rurality displays by race. two prep steps below*/
 /*But first SVI/Density IR prep*/
 
 /*Part I: This is a little wonky but we're going to create a SVI and Density identifier where 1=high SVI or Rural, 0=low SVI or Non-rural and 
-.= not the right category. The gist is we can use our 'dummy' variable as a grouping point for SVI and Density. Is there an easier way? Maybe.*/
+.= not the right category (ie. SVI in the rural case and vice versa). The gist is we can use our 'dummy' variable as a grouping point for SVI and Density. 
+Is there an easier way? Maybe.*/
+
 proc sql;
 create table graphs_data_density as
 select
@@ -63,12 +29,13 @@ select
 			"Rural residency IR, Race: Asian",
 			"Rural residency IR, Race: Other/Two or More Races")
 
-			then 1 	 
+			then 1 	 					/*Pick out our RURAL labels and assign them 1, 0 if they're rural vs non-rural*/
 
-	when (find(_LABEL_, "SVI")>0) then . 
+	when (find(_LABEL_, "SVI")>0) then . /*If the label is SVI related we'll mark it missing so the graph doesn't display the value*/
 
 		else 0 end as rural_id,
 
+				/*Same thing but in reverse for SVI*/
 
 	case when _LABEL_ in 
 
@@ -85,26 +52,22 @@ select
 
 		else 0 end as sviHI_id
 
-
-
-
-
-
 from equIR_transp_final
 ;
 
 quit;
 
 
-/*Part II: re-label everything to be much more simple*/
+/*Part II: re-label everything to be much more simple in the graph display*/
+
 proc format;
 value rural_id
 	0='Non-Rural Residency'
 	1='Rural Residency';
 
 value sviHI_id
-	0='SVI < 0.8'
-	1='SVI > 0.8';
+	0='Low Risk < 0.8'
+	1='High Risk > 0.8';
 
 value $ _LABEL_
 
@@ -136,11 +99,45 @@ value $ _LABEL_
 	
 run;
 
+/*Wrote this into a macro because it seemed easier. Kind of a lot of settings though so not sure how much time it actually saves. No need to repeat the same sgplot 9+ times is the goal.
 
+Format guide: Arial font, 10pt size, and bold axes labels. Order variables with 'unknown' and 'missing' as the last two where applicable.
+
+*/
+
+
+%macro bar_mdro (group=, set=, title=, order=);
 ods graphics /noborder;
 
-/*Macro for SVI and rurality, a little different since it's a panel graph*/
-/*Added macro #2 2/5/2025*/
+proc sgplot data=SASdata.&set noborder noautolegend;
+	vbar &group / barwidth=.5 group=&group nooutline;
+
+	xaxis label = &title 
+		valueattrs= (family="Arial" size=10)
+		labelattrs= (family="Arial" weight= bold size=10)
+			values=(&order); 
+
+	yaxis label = 'Number of cases'
+		valueattrs= (family="Arial" size=10)
+		labelattrs= (family="Arial" weight=bold size=10);
+
+		where testreportqtr <= '01jan2024'd and type ~= 'STRA';
+		styleattrs datacolors= (vligb mogb ligb dagb pab grb libgr);	/*From: http://ftp.sas.com/techsup/download/graph/color_list.pdf
+																				page 8 for greenscale colors used. Can use other 
+																				scales/combinations but consitency would be beneficial*/
+
+
+run;
+title;
+
+
+%mend bar_mdro;
+ 
+
+
+/*Macro for SVI and rurality, a little different since it's a panel graph.
+Format guide: Arial font, 10pt size, and bold axes labels. Order variables 'yes', 'no', 'unknown', and 'missing' as the last two where applicable.*/
+
 %macro bar_mdro_2 (group=, label=);
 
 proc sgpanel data=graphs_data_density noautolegend;
@@ -164,6 +161,7 @@ vbarparm category=_LABEL_ response=ir_val / groupdisplay=cluster
 	where &group not in (.) ;
 run;
 %mend bar_mdro_2;
+
 
 
 ods graphics /noborder;
@@ -192,8 +190,6 @@ ods excel options (sheet_interval = "none" sheet_name = "graphs" embedded_titles
 %bar_mdro_2 (group=sviHI_id, label=sviHI_id.);
 
 ods excel close;
-
-
 
 
 
