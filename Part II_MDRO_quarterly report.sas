@@ -4,8 +4,7 @@
 options compress=yes;
 options nofmterr;
 title;footnote;
-
-
+proc freq data=SASdata.healthequitySAS;tables hce_0 / norow nocol nopercent;run;
 /*Health Equity Cleaning, New Variables*/
 data analysis;
 set SASdata.healthequitySAS;
@@ -21,10 +20,7 @@ set SASdata.healthequitySAS;
 	if recent_travel in ("No") or RECENT_TRAVEL in ("NO") or RECENT_TRAVEL in ("No") then travel="No";
 	if recent_travel in ("Unknown") or RECENT_TRAVEL in ("UNKNOWN") or RECENT_TRAVEL in ("Unknown") then travel="Unknown";
 
-	/*ii.healthcare experience (facility type)*/
-	healthcare_experience= "Missing";
-	if HCE not in ("") then healthcare_experience = HCE;
-	if HCE_0 not in ("") then healthcare_experience = HCE_0;
+
 
 	/*iii. hospitalization status*/
 	hospitalized_new= "Unknown/Missing";
@@ -37,35 +33,28 @@ set SASdata.healthequitySAS;
 	*/
 	density=.;
 
-	if owning_jd=  "Alamance County"
-	or owning_jd=  "Brunswick County"
-	or owning_jd=  "Buncombe County"
-	or owning_jd=  "Burke County"
-	or owning_jd=  "Caldwell County"
-	or owning_jd=  "Catawba County"
-	or owning_jd=  "Chatham County"
-	or owning_jd=  "Cumberland County"
-	or owning_jd=  "Davidson County"
-	or owning_jd=  "Davie County"
-	or owning_jd=  "Durham County"
-	or owning_jd=  "Edgecombe County"
-	or owning_jd=  "Forsyth County"
-	or owning_jd=  "Guilford County"
-	or owning_jd=  "Haywood County"
-	or owning_jd=  "Henderson County"
-	or owning_jd=  "Hoke County"
-	or owning_jd=  "Iredell County"
-	or owning_jd=  "Johnston County"
-	or owning_jd=  "Mecklenburg County"
-	or owning_jd=  "Nash County"
-	or owning_jd=  "New Hanover County"
-	or owning_jd=  "Onslow County"
-	or owning_jd=  "Orange County"
-	or owning_jd=  "Pitt County"
-	or owning_jd=  "Stokes County"
-	or owning_jd=  "Union County"
-	or owning_jd=  "Wake County"
-	or owning_jd=  "Wayne County"
+	if owning_jd= "Alamance County"
+	or owning_jd= "Buncombe County"
+	or owning_jd= "Cabarrus County"
+	or owning_jd= "Catawba County"
+	or owning_jd= "Cumberland County"
+	or owning_jd= "Davidson County"
+	or owning_jd= "Durham County"
+	or owning_jd= "Forsyth County"
+	or owning_jd= "Gaston County"
+	or owning_jd= "Guilford County"
+	or owning_jd= "Henderson County"
+	or owning_jd= "Iredell County"
+	or owning_jd= "Johnston County"
+	or owning_jd= "Lincoln County"
+	or owning_jd= "Mecklenburg County"
+	or owning_jd= "New Hanover County"
+	or owning_jd= "Onslow County"
+	or owning_jd= "Orange County"
+	or owning_jd= "Pitt County"
+	or owning_jd= "Rowan County"
+	or owning_jd= "Union County"
+	or owning_jd= "Wake County"
 
 	then density=1;
 
@@ -119,6 +108,8 @@ set SASdata.healthequitySAS;
 run;
 
 
+
+
 /*End cleaning; begin tables*/
 
 /*Health Equity Tables*/
@@ -138,24 +129,84 @@ select
 from analysis
 	group by testreportqtr 
 ;
-
-
+/*healthcare experience is a bit more complex. We want to search across all experiences, so an individual could be in a LTCF but diagnosed in an acute care setting. The result would be grouping in each, ie. people can fall into more than
+one bucket for healthcare experience.*/
 create table hlth_equity_HCE as
 select
 
 		intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
 	/*MDRO healthcare experience*/
-	sum (case when healthcare_experience in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) as sum_hce_acute "MDRO in Quarter, HCE: Acute Care Hospital",
-	sum (case when healthcare_experience in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) as sum_hce_ltc "MDRO in Quarter, HCE: Long term care facility",
-	sum (case when healthcare_experience in ('No', 'None') then 1 else 0 end) as sum_hce_no "MDRO in Quarter, HCE: None",
-	sum (case when healthcare_experience in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) as sum_hce_ltach "MDRO in Quarter, HCE: Long Term Acute Care Hospital",
+	sum (case when hce in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_0 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_1 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_2 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_3 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_4 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_5 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
+	sum (case when hce_6 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) 
+		as sum_hce_acute "MDRO in Quarter, HCE: Acute Care Hospital",
 
-	
-	sum (case when healthcare_experience in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') 
-				then 1 else 0 end) as sum_hce_surg "MDRO in Quarter, HCE: Surgery, Hemodialysis, other procedure(s)",
-	sum (case when healthcare_experience in ('Unknown') then 1 else 0 end) as sum_hce_unk "MDRO in Quarter, HCE: Unknown",
-	sum (case when healthcare_experience in ('Missing') then 1 else 0 end) as sum_hce_miss "MDRO in Quarter, HCE: Missing"
+	sum (case when hce in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_0 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_1 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_2 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_3 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_4 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_5 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
+	sum (case when hce_6 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) 
+		as sum_hce_ltc "MDRO in Quarter, HCE: Long term care facility",
+
+
+	sum (case when hce in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_0 in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_1 in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_2 in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_3 in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_4 in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_5 in ('No', 'None') then 1 else 0 end) +
+	sum (case when hce_6 in ('No', 'None') then 1 else 0 end) 
+		as sum_hce_no "MDRO in Quarter, HCE: None",
+
+	sum (case when hce in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_0 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_1 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_2 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_3 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_4 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_5 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
+	sum (case when hce_6 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) 
+		as sum_hce_ltach "MDRO in Quarter, HCE: Long Term Acute Care Hospital",
+
+	sum (case when hce in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_0 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_1 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_2 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_3 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_4 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_5 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
+	sum (case when hce_6 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) 
+		as sum_hce_surg "MDRO in Quarter, HCE: Surgery, Hemodialysis, other procedure(s)",
+
+	sum (case when hce in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_0 in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_1 in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_2 in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_3 in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_4 in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_5 in ('Unknown') then 1 else 0 end) +
+	sum (case when hce_6 in ('Unknown') then 1 else 0 end) 
+		as sum_hce_unk "MDRO in Quarter, HCE: Unknown",
+
+	sum (case when hce in ('Missing') then 1 else 0 end) +
+	sum (case when hce_0 in ('Missing') then 1 else 0 end) +
+	sum (case when hce_1 in ('Missing') then 1 else 0 end) +
+	sum (case when hce_2 in ('Missing') then 1 else 0 end) +
+	sum (case when hce_3 in ('Missing') then 1 else 0 end) +
+	sum (case when hce_4 in ('Missing') then 1 else 0 end) +
+	sum (case when hce_5 in ('Missing') then 1 else 0 end) +
+	sum (case when hce_6 in ('Missing') then 1 else 0 end) 
+		as sum_hce_miss "MDRO in Quarter, HCE: Missing"
 
 from analysis
 	group by testreportqtr 
@@ -253,7 +304,7 @@ merge hlth_equity_density_qt hlth_equity_hosp hlth_equity_HCE hlth_equity_trav h
 	by testreportqtr;
 	where testreportqtr <= "&qtr_dte."d; *<----- set date parameters here, it can mess up cumulative counts if you do it later on;
 run;
-
+proc print data=equity_combine_cum;run;
 /*make all of our cumulative values*/
 data equity_combine_cum;
 set equity_combine;
@@ -459,7 +510,7 @@ where testreportqtr in ("&qtr_dte"d);
 quit;
 
 
-proc print data=qtr_percent_equity noobs label;run;
+proc print data=equity_plots (obs=100) noobs label;run;
 
 
 /*Now tables for race, eth, gender, and age*/
@@ -1003,16 +1054,16 @@ quit;
 
 /*Now we have individual tables AND a combined table of values for basic demographics and health equity questions*/
 
-/*Demographics*/
+/*Demographics
 proc print data=final_combined_mechanism noobs label;run;
 
 
 proc print data=final_combined_race noobs label;run;
 proc print data=final_combined_eth noobs label;run;
 proc print data=final_combined_gender noobs label;run;
-proc print data=final_combined_age noobs label;run;
-/*Equity*/
-proc print data=equity_final_pcts noobs label;run;
+proc print data=final_combined_age noobs label;run;*/
+/*Equity
+proc print data=equity_final_pcts noobs label;run;*/
 
 
 
@@ -1038,9 +1089,11 @@ from analysis
 
 ;
 quit;
+proc contents data=hlth_equity_hce;run;
+
 
 data equity_plots;
-length hce_plot $36.;
+
 length label_trav $12.;
 length label_HCE $12.;
 length label_hosp $12.;
@@ -1065,14 +1118,6 @@ set equity_plots;
 	if EVENT_DATE <"01dec&year_dte."d then
 		Label_hceexp = " ";
 
-if healthcare_experience in ('Acute Care Hospitalization', 'ACUTE_HOSP') then hce_plot = "Acute Care Hospital";
-if healthcare_experience in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then hce_plot = "LTCF";
-if healthcare_experience in ('No', 'None') then hce_plot = "None";
-if healthcare_experience in ('Long term acute care hospital (LTACH)', 'LTACH') then hce_plot = "LTACH";
-if healthcare_experience in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then hce_plot = "Surgery/Hemodialysis/Other Surg.";
-if healthcare_experience in ('Unknown') then hce_plot = "Unknown";
-if healthcare_experience in ('Missing') then hce_plot = "Missing";
-
 	/*Rurality
 			1=urban
 			2=suburban
@@ -1084,6 +1129,40 @@ if healthcare_experience in ('Missing') then hce_plot = "Missing";
 	if density in (0) then rurality= "Rural";
 
 run;
+
+
+
+/*Healthcare experience is wild. Just make HCE its own graph*/
+data equity_labels_hce;
+set equity_combine_cum (keep= testreportqtr cum_sum_hce_acute cum_sum_hce_ltach cum_sum_hce_ltc cum_sum_hce_miss cum_sum_hce_no cum_sum_hce_surg cum_sum_hce_unk);
+
+
+label cum_sum_hce_acute = "Acute Care Hospital"; 
+
+
+	label cum_sum_hce_ltach = "LTACH";
+	label cum_sum_hce_ltc = "LTCF"; 
+	label cum_sum_hce_no = "None"; 
+	label cum_sum_hce_surg = "Surgery/Hemodialysis";
+	label cum_sum_hce_unk = "Unknown";
+	label cum_sum_hce_miss = "Missing";
+
+
+where testreportqtr in ("&qtr_dte"d);
+run;
+
+proc transpose data=equity_labels_hce out=transpose_labels;
+
+  /*BY hce_plot;   This variable will become the new row identifier */
+
+  var cum_sum_hce_acute cum_sum_hce_ltach cum_sum_hce_ltc cum_sum_hce_miss cum_sum_hce_no cum_sum_hce_surg cum_sum_hce_unk; /* These columns will be transposed into rows */
+
+run;
+
+
+
+
+
 /*separate label for health equity density labels*/
 data hlth_equity_density_month_2;
 set hlth_equity_density_month;
@@ -1361,3 +1440,4 @@ run;
 
 
 /*Done!*/
+
