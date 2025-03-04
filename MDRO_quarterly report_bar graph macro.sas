@@ -1,13 +1,12 @@
 
-/*MDRO Quarterly report macro*/
+/*MDRO Quarterly report bar graph macro*/
 
-/*Reset Macros in case running separately*/
 options compress=yes;
 options nofmterr;
 title;footnote;
 
 /*Second part (macro "bar_mdro_2" is the SVI/Density graphs by race, these are slightly more involved since they're panel displays. Still not too bad and provide
-some grouping aspect to our SVI and rurality displays by race. two prep steps below*/
+some grouping aspect to our SVI and rurality displays by race. two prep steps below. HCE graph is stand alone until I have time to fix the macro. */
 /*But first SVI/Density IR prep*/
 
 /*Part I: This is a little wonky but we're going to create a SVI and Density identifier where 1=high SVI or Rural, 0=low SVI or Non-rural and 
@@ -50,12 +49,20 @@ select
 
 	 when (find(_LABEL_, "Rural")>0) then . 
 
-		else 0 end as sviHI_id
+		else 0 end as sviHI_id,
+
+	(ir_val * 1.05) as uCL "Upper confidence limit",
+	(ir_val * 0.95) as lCL "Lower confidence limit"
+
+
 
 from equIR_transp_final
 ;
-
 quit;
+
+proc print data=graphs_data_density;run;
+
+
 
 
 /*Part II: re-label everything to be much more simple in the graph display*/
@@ -110,7 +117,7 @@ Format guide: Arial font, 10pt size, and bold axes labels. Order variables with 
 ods graphics /noborder;
 
 proc sgplot data=SASdata.&set noborder noautolegend;
-	vbar &group / barwidth=.5 group=&group nooutline;
+	vbar &group / barwidth=.5 group=&group nooutline limits=both;
 
 	xaxis label = &title 
 		valueattrs= (family="Arial" size=10)
@@ -138,19 +145,21 @@ title;
 /*Macro for SVI and rurality, a little different since it's a panel graph.
 Format guide: Arial font, 10pt size, and bold axes labels. Order variables 'yes', 'no', 'unknown', and 'missing' as the last two where applicable.*/
 
-%macro bar_mdro_2 (group=, label=);
+%macro bar_mdro_2 (group=, label=, order=);
 
 proc sgpanel data=graphs_data_density noautolegend;
 
-panelby &group  / uniscale = row novarname ;
+panelby &group  / uniscale = row novarname;
 format &group &label _LABEL_ $_LABEL_.;
 
-vbarparm category=_LABEL_ response=ir_val / groupdisplay=cluster 
+/*Using vbarparm we can categorize by label and add the confidence intervals (color=black) to give a nice visual*/
+vbarparm category=_LABEL_ response=ir_val / limitlower=lCL limitupper=uCL limitattrs=(color=black) groupdisplay=cluster 
     group=&group nooutline;
 	
 	colaxis label="Race" valueattrs= (family="Arial" size=10)
 		valueattrs= (family="Arial" size=10)
-		labelattrs= (family="Arial" weight=bold size=10);
+		labelattrs= (family="Arial" weight=bold size=10)
+			values=(&order);
 
   	rowaxis label="IR/100K" valueattrs= (family="Arial" size=10)
 		valueattrs= (family="Arial" size=10)
@@ -183,25 +192,31 @@ ods excel options (sheet_interval = "none" sheet_name = "graphs" embedded_titles
 /*Equity Plots*/
 %bar_mdro(set=equity_plots, group=travel, order="Yes" "No" "Unknown" "Missing", title="History of Travel");
 %bar_mdro(set=equity_plots, group=hospitalized_new, order="Yes" "No" "Unknown", title="Hospitalization Status");
-%bar_mdro(set=equity_plots, group=hce_plot, order="Acute Care Hospital" "LTACH" "LTCF" "None" "Surgery/Hemodialysis/Other Surg." "Unknown" "Missing", title="Healthcare Experience");
+
+proc sgplot data=transpose_labels noborder noautolegend;
+	vbar _label_ / barwidth=.5 response=col1 nooutline stat=sum
+		group=_label_ groupdisplay=cluster;
+
+	xaxis label = "Healthcare Experience"
+		valueattrs= (family="Arial" size=10)
+		labelattrs= (family="Arial" weight= bold size=10)
+			values=("Acute Care Hospital" "LTACH" "LTCF" "None" "Surgery/Hemodialysis" "Unknown");
+
+	yaxis label = 'Number of cases'
+		valueattrs= (family="Arial" size=10)
+		labelattrs= (family="Arial" weight=bold size=10);
+
+		*where testreportqtr <= '01jan2024'd and type ~= 'STRA';
+		styleattrs datacolors= (vligb mogb ligb dagb pab grb libgr);
+
+
+run;
+title;
 
 /*Rural and SVI Plots*/
-%bar_mdro_2 (group=rural_id, label=rural_id.);
-%bar_mdro_2 (group=sviHI_id, label=sviHI_id.);
+%bar_mdro_2 (group=rural_id, order="White" "Black/AA" "AI/AN" "Other" , label=rural_id.);
+%bar_mdro_2 (group=sviHI_id, order="White" "Black/AA" "Other" , label=sviHI_id.);
 
 ods excel close;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/*fin*/
