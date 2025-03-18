@@ -44,7 +44,7 @@ from denorm.case
 	left join denorm.Admin_question_package_addl as b on s.case_id=b.case_id
 
 where s.CLASSIFICATION_CLASSIFICATION in ("Confirmed", "Probable")
-	and s.type in ( "CRE") /*Add "STRA" for Group A strep when necessary*/
+	and s.type in ("CRE") 
 	and s.REPORT_TO_CDC not in ('');
 
 quit;
@@ -177,7 +177,7 @@ getnames=yes;
 
 run;
 
-
+proc print data=caurisRH_import2 noobs;run;
 
 
 
