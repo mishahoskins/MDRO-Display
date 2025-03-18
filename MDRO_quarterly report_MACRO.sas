@@ -63,6 +63,8 @@ Mikhail Hoskins : mikhail.hoskins@dhhs.nc.gov : 984-279-9535
 
 
 
+proc printto log="T:\HAI\Code library\Epi curve example\SAS Codes\MDRO_log_&sysdate..doc"; *<----- change log date here;
+
 /*MACROS*/
 /*Need correct denormalized table(s)*/
 options compress=yes;
@@ -130,8 +132,8 @@ Should only need to update these once per year.
 
 
 /*Rurality Pop.*/
-%let ruraltotalpop = 3591696;
-%let nonruralpop = 7243795;/*Urban + Suburban counties = 'Non-rural' from here: https://www.oldnorthstatepolitics.com/p/blog-page_5.html*/
+%let ruraltotalpop = 3646750;
+%let nonruralpop = 6792638;/*Urban + Suburban counties = 'Non-rural' from here: https://www.ncruralcenter.org/how-we-define-rural/*/
 
 /*SVI populations:
 If the Social Vulnerability Index (SVI) is over 0.80 we classify the county as "Vulnerable"
@@ -147,6 +149,7 @@ Description of EDRC (Economically Disadvantaged Rural Communities) : https://fil
 
 
 /*Population denominators for SVI and density by race 2023. File here: T:\HAI\Code library\Epi curve example\ncedss extracts derived from CDC census tracks*/
+
 	/*SVI*/
 %let svihighwhite = 608066;
 %let svihighblack = 451531;
@@ -163,25 +166,31 @@ Description of EDRC (Economically Disadvantaged Rural Communities) : https://fil
 %let svilowother = 249922; /*Two or more races in Census track data*/
 
 	/*Density*/
-%let ruralwhite = 2649026;
-%let ruralblack = 694424;
-%let ruralaian = 100159;
-%let ruralasian = 56704;
-%let ruralnhpi = 5265; 
-%let ruralother = 86118; /*Two or more races in Census track data*/
+%let ruralwhite = 2772803;
+%let ruralblack = 728435;
+%let ruralaian = 107176;
+%let ruralasian = 45423;
+%let ruralnhpi = 6346; 
+%let ruralother = 89034; /*Two or more races in Census track data*/
 
-%let nonruralwhite = 4915500;
-%let nonruralblack = 1697993;
-%let nonruralaian = 72648;
-%let nonruralasian = 342654;
-%let nonruralnhpi = 11412;
-%let nonruralother = 203588; /*Two or more races in Census track data*/
+%let nonruralwhite = 4791723;
+%let nonruralblack = 1663982;
+%let nonruralaian = 65631;
+%let nonruralasian = 353935;
+%let nonruralnhpi = 10331;
+%let nonruralother = 200672; /*Two or more races in Census track data*/
 
 
 
 /*Run other codes to create outputs*/
 %INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part I_MDRO_quarterly report.sas";
-%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part II_MDRO_quarterly report.sas";/*Incidence rate code embedded in Part II*/
+%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part II_MDRO_quarterly report_condensed.sas";/*Incidence rate codev and bar graph embedded in Part II*/
+
+																								/*Note: MUST run ALL of Part II in order for the bar graph macro to properly run*/
+/*As of Version 3.1 we don't run these no mapping no long-form tables*/
+/*
 %INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part III_MDRO_quarterly report.sas";
 %INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part IV_MDRO_quarterly report.sas";
+*/
+
 
