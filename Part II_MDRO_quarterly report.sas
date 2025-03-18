@@ -4,8 +4,9 @@
 options compress=yes;
 options nofmterr;
 title;footnote;
-proc freq data=SASdata.healthequitySAS;tables hce_0 / norow nocol nopercent;run;
 /*Health Equity Cleaning, New Variables*/
+
+
 data analysis;
 set SASdata.healthequitySAS;
 
@@ -304,7 +305,7 @@ merge hlth_equity_density_qt hlth_equity_hosp hlth_equity_HCE hlth_equity_trav h
 	by testreportqtr;
 	where testreportqtr <= "&qtr_dte."d; *<----- set date parameters here, it can mess up cumulative counts if you do it later on;
 run;
-proc print data=equity_combine_cum;run;
+
 /*make all of our cumulative values*/
 data equity_combine_cum;
 set equity_combine;
@@ -419,98 +420,6 @@ from equity_combine_cum
 ;
 quit;
 
-/*Alternate view for tables; using a CATS(put...) statement we can add our percents into one "cell" on export for table viewing*/
-data equity_percent_combine;
-	set qtr_percent_equity;
-
-
-count_pct_mdro_rural = cats(put(cum_mdro_rural, Comma8.), "(", put(pct_mdro_rural, percent8.1), ")");
-count_pct_mdro_NONrural = cats(put(cum_mdro_NONrural, Comma8.), "(", put(pct_mdro_NONrural, percent8.1), ")");
-
-count_pct_mdro_sviHI = cats(put(cum_mdro_svi_HI, Comma8.), "(", put(pct_mdro_sviHI, percent8.1), ")");
-count_pct_mdro_sviLO = cats(put(cum_mdro_svi_LO, Comma8.), "(", put(pct_mdro_sviLO, percent8.1), ")");
-
-
-
-count_pct_sum_hosp_y = cats(put(cum_sum_hosp_y, Comma8.), "(", put(pct_sum_hosp_y, percent8.1), ")");
-count_pct_sum_hosp_n = cats(put(cum_sum_hosp_n, Comma8.), "(", put(pct_sum_hosp_n, percent8.1), ")");
-count_pct_sum_hosp_unkmiss = cats(put(cum_sum_hosp_unkmiss, Comma8.), "(", put(pct_sum_hosp_unkmiss, percent8.1), ")");
-count_pct_sum_hce_acute = cats(put(cum_sum_hce_acute, Comma8.), "(", put(pct_sum_hce_acute, percent8.1), ")");
-count_pct_sum_hce_ltc = cats(put(cum_sum_hce_ltc, Comma8.), "(", put(pct_sum_hce_ltc, percent8.1), ")");
-count_pct_sum_hce_no = cats(put(cum_sum_hce_no, Comma8.), "(", put(pct_sum_hce_no, percent8.1), ")");
-count_pct_sum_hce_ltach = cats(put(cum_sum_hce_ltach, Comma8.), "(", put(pct_sum_hce_ltach, percent8.1), ")");
-count_pct_sum_hce_surg = cats(put(cum_sum_hce_surg, Comma8.), "(", put(pct_sum_cum_sum_hce_surg, percent8.1), ")");
-count_pct_sum_hce_unk = cats(put(cum_sum_hce_unk, Comma8.), "(", put(pct_sum_cum_sum_hce_unk, percent8.1), ")");
-count_pct_sum_hce_miss = cats(put(cum_sum_hce_miss, Comma8.), "(", put(pct_sum_cum_sum_hce_miss, percent8.1), ")");
-count_pct_sum_travel_y = cats(put(cum_sum_travel_y, Comma8.), "(", put(pct_sum_cum_sum_travel_y, percent8.1), ")");
-count_pct_sum_travel_n = cats(put(cum_sum_travel_n, Comma8.), "(", put(pct_sum_cum_sum_travel_n, percent8.1), ")");
-count_pct_sum_travel_u = cats(put(cum_sum_travel_u, Comma8.), "(", put(pct_sum_cum_sum_travel_u, percent8.1), ")");
-count_pct_sum_travel_m = cats(put(cum_sum_travel_m, Comma8.), "(", put(pct_sum_cum_sum_travel_m, percent8.1), ")");
-
-count_pct_sum_screen_y = cats(put(cum_sum_screenevnt_y, Comma8.), "(", put(pct_sum_screen_y, percent8.1), ")");
-count_pct_sum_screen_n = cats(put(cum_sum_screenevnt_n, Comma8.), "(", put(pct_sum_screen_n, percent8.1), ")");
-count_pct_sum_screen_miss = cats(put(cum_sum_screenevnt_miss, Comma8.), "(", put(pct_sum_screen_miss, percent8.1), ")");
-
-
-run;
-
-
-
-proc sql;
-create table equity_final_pcts as
-select
-
-
-		testreportqtr,
-
-			/*Rural residency*/
-			/*count_pct_mdro_urban "MDRO cases (%) Urban residency through &qtr_num.",*/
-			count_pct_mdro_rural "MDRO cases (%) rural residency through &qtr_num.",
-			/*count_pct_mdro_suburban "MDRO cases (%) Suburban residency through &qtr_dte.",*/
-			count_pct_mdro_NONrural "MDRO cases (%)non-rural residency through &qtr_num.",
-
-			cum_mdro_rural_IR "MDRO IR rural residency through &qtr_num.",
-			cum_mdro_NONrural_IR "MDRO IR non-rural residency through &qtr_num.",
-
-			/*SVI*/
-			count_pct_mdro_sviHI "MDRO cases (%) SVI-residency greater or equal to 0.80",
-			count_pct_mdro_sviLO "MDRO cases (%) SVI-residency less than 0.80",
-			cum_mdro_sviHI_IR,
-			cum_mdro_sviLO_IR,
-
-
-			/*Hospitalization status*/
-			count_pct_sum_hosp_y "MDRO cases (%) hospitalized through &qtr_num.",
-			count_pct_sum_hosp_n "MDRO cases (%) not hospitalized through &qtr_num.",
-			count_pct_sum_hosp_unkmiss "MDRO cases (%) hospitalization status unknown/missing through &qtr_num.",
-			/*healthcare experience*/
-			count_pct_sum_hce_acute "MDRO cases (%) HCE acute care through &qtr_num.",				
-			count_pct_sum_hce_ltc "MDRO cases (%) HCE long term care fac. through &qtr_num.",
-			count_pct_sum_hce_no "MDRO cases (%)HCE none through &qtr_num.",
-			count_pct_sum_hce_ltach "MDRO cases (%) HCE long term acute care through &qtr_num.",
-			count_pct_sum_hce_surg "MDRO cases (%) HCE surgery/invasive procedure through &qtr_num.",
-			count_pct_sum_hce_unk "MDRO cases (%) HCE unknown through &qtr_num.",
-			count_pct_sum_hce_miss "MDRO cases (%) HCE missing through &qtr_num.",
-			/*travel*/
-			count_pct_sum_travel_y "MDRO cases (%) history of travel through &qtr_num.",
-			count_pct_sum_travel_n "MDRO cases (%) no history of travel through &qtr_num.",
-			count_pct_sum_travel_u "MDRO cases (%) history of travel unknown through &qtr_num.",
-			count_pct_sum_travel_m "MDRO cases (%) history of travel missing through &qtr_num.",
-			/*screening*/
-			count_pct_sum_screen_y "MDRO cases (%) ID'd through screening",
-			count_pct_sum_screen_n "MDRO cases (%) ID'd through clinical care",
-			count_pct_sum_screen_miss "MDRO cases (%) manner of ID unknown/missing"
-
-from equity_percent_combine
-	
-where testreportqtr in ("&qtr_dte"d);
-	/*order by testreportqtr */
-;
-
-quit;
-
-
-proc print data=equity_plots (obs=100) noobs label;run;
 
 
 /*Now tables for race, eth, gender, and age*/
@@ -804,10 +713,6 @@ set test_combine;
 run;
 
 
-/*Always take a look at the tables we're creating*/
-proc print data=combine_cum_demo noobs label;run;
-proc contents data=combine_cum_demo;run;
-
 /*Now create percentages of cumulative counts as we move through each quarter of our timeframe*/
 proc sql;
 create table combine_qtr_percent as
@@ -861,192 +766,8 @@ select
 
 from combine_cum_demo
 	where testreportqtr <= "&qtr_dte."d
-	group by testreportqtr
+	order by testreportqtr
 
-;
-quit;
-
-
-/*Create ###(%%) variables*/
-data count_percent_combine;
-	merge combine_cum_demo combine_qtr_percent;
-by testreportqtr;
-where testreportqtr <= "&qtr_dte."d;
-
-run;
-
-data count_percent_combine;
-	set count_percent_combine;
-
-
-	count_pct_cum_CRE_w = cats(put(cum_CRE_w, Comma8.), "(", put(pct_cum_CRE_w, percent8.1), ")");
-	count_pct_cum_CRE_b = cats(put(cum_CRE_b, Comma8.), "(", put(pct_cum_CRE_b, percent8.1), ")");
-	count_pct_cum_CRE_a = cats(put(cum_CRE_a, Comma8.), "(", put(pct_cum_CRE_a, percent8.1), ")");
-	count_pct_cum_CRE_nhpi = cats(put(cum_CRE_nhpi, Comma8.), "(", put(pct_cum_CRE_nhpi, percent8.1), ")");
-	count_pct_cum_CRE_oth = cats(put(cum_CRE_oth, Comma8.), "(", put(pct_cum_CRE_oth, percent8.1), ")");
-	count_pct_cum_CRE_unk = cats(put(cum_CRE_unk, Comma8.), "(", put(pct_cum_CRE_unk, percent8.1), ")");
-	count_pct_cum_CRE_aian = cats(put(cum_CRE_aian, Comma8.), "(", put(pct_cum_CRE_aian, percent8.1), ")");
-	count_pct_cum_CRE_miss = cats(put(cum_CRE_miss, Comma8.), "(", put(pct_cum_CRE_miss, percent8.1), ")");
-	count_pct_cum_c_auris_w = cats(put(cum_c_auris_w, Comma8.), "(", put(pct_cum_c_auris_w, percent8.1), ")");
-	count_pct_cum_c_auris_b = cats(put(cum_c_auris_b, Comma8.), "(", put(pct_cum_c_auris_b, percent8.1), ")");
-	count_pct_cum_c_auris_a = cats(put(cum_c_auris_a, Comma8.), "(", put(pct_cum_c_auris_a, percent8.1), ")");
-	count_pct_cum_c_auris_nhpi = cats(put(cum_c_auris_nhpi, Comma8.), "(", put(pct_cum_c_auris_nhpi, percent8.1), ")");
-	count_pct_cum_c_auris_oth = cats(put(cum_c_auris_oth, Comma8.), "(", put(pct_cum_c_auris_oth, percent8.1), ")");
-	count_pct_cum_c_auris_unk = cats(put(cum_c_auris_unk, Comma8.), "(", put(pct_cum_c_auris_unk, percent8.1), ")");
-	count_pct_cum_c_auris_aian = cats(put(cum_c_auris_aian, Comma8.), "(", put(pct_cum_c_auris_aian, percent8.1), ")");
-	count_pct_cum_c_auris_miss = cats(put(cum_c_auris_miss, Comma8.), "(", put(pct_cum_c_auris_miss, percent8.1), ")");
-	count_pct_cum_CP_CRE_hisp = cats(put(cum_CP_CRE_hisp, Comma8.), "(", put(pct_cum_CP_CRE_hisp, percent8.1), ")");
-	count_pct_cum_CP_CRE_nohisp = cats(put(cum_CP_CRE_nohisp, Comma8.), "(", put(pct_cum_CP_CRE_nohisp, percent8.1), ")");
-	count_pct_cum_CP_CRE_unkhisp = cats(put(cum_CP_CRE_unkhisp, Comma8.), "(", put(pct_cum_CP_CRE_unkhisp, percent8.1), ")");
-	count_pct_cum_CP_CRE_misshisp = cats(put(cum_CP_CRE_misshisp, Comma8.), "(", put(pct_cum_CP_CRE_misshisp, percent8.1), ")");
-	count_pct_cum_c_auris_hisp = cats(put(cum_c_auris_hisp, Comma8.), "(", put(pct_cum_c_auris_hisp, percent8.1), ")");
-	count_pct_cum_c_auris_nohisp = cats(put(cum_c_auris_nohisp, Comma8.), "(", put(pct_cum_c_auris_nohisp, percent8.1), ")");
-	count_pct_cum_c_auris_unkhisp = cats(put(cum_c_auris_unkhisp, Comma8.), "(", put(pct_cum_c_auris_unkhisp, percent8.1), ")");
-	count_pct_cum_c_auris_mishisp = cats(put(cum_c_auris_mishisp, Comma8.), "(", put(pct_cum_c_auris_mishisp, percent8.1), ")");
-	count_pct_cum_CP_CRE_male = cats(put(cum_CP_CRE_male, Comma8.), "(", put(pct_cum_CP_CRE_male, percent8.1), ")");
-	count_pct_cum_CP_CRE_female = cats(put(cum_CP_CRE_female, Comma8.), "(", put(pct_cum_CP_CRE_female, percent8.1), ")");
-	count_pct_cum_CP_CRE_sexmiss = cats(put(cum_CP_CRE_sexmiss, Comma8.), "(", put(pct_cum_CP_CRE_sexmiss, percent8.1), ")");
-	count_pct_cum_c_auris_male = cats(put(cum_c_auris_male, Comma8.), "(", put(pct_cum_c_auris_male, percent8.1), ")");
-	count_pct_cum_c_auris_female = cats(put(cum_c_auris_female, Comma8.), "(", put(pct_cum_c_auris_female, percent8.1), ")");
-	count_pct_cum_c_auris_sexmiss = cats(put(cum_c_auris_sexmiss, Comma8.), "(", put(pct_cum_c_auris_sexmiss, percent8.1), ")");
-	count_pct_cum_CRE_04 = cats(put(cum_CRE_04, Comma8.), "(", put(pct_cum_CRE_04, percent8.1), ")");
-	count_pct_cum_CRE_0517 = cats(put(cum_CRE_0517, Comma8.), "(", put(pct_cum_CRE_0517, percent8.1), ")");
-	count_pct_cum_CRE_1824 = cats(put(cum_CRE_1824, Comma8.), "(", put(pct_cum_CRE_1824, percent8.1), ")");
-	count_pct_cum_CRE_2549 = cats(put(cum_CRE_2549, Comma8.), "(", put(pct_cum_CRE_2549, percent8.1), ")");
-	count_pct_cum_CRE_5064 = cats(put(cum_CRE_5064, Comma8.), "(", put(pct_cum_CRE_5064, percent8.1), ")");
-	count_pct_cum_CRE_65 = cats(put(cum_CRE_65, Comma8.), "(", put(pct_cum_CRE_65, percent8.1), ")");
-	count_pct_cum_CAURIS_04 = cats(put(cum_CAURIS_04, Comma8.), "(", put(pct_cum_CAURIS_04, percent8.1), ")");
-	count_pct_cum_CAURIS_0517 = cats(put(cum_CAURIS_0517, Comma8.), "(", put(pct_cum_CAURIS_0517, percent8.1), ")");
-	count_pct_cum_CAURIS_1824 = cats(put(cum_CAURIS_1824, Comma8.), "(", put(pct_cum_CAURIS_1824, percent8.1), ")");
-	count_pct_cum_CAURIS_2549 = cats(put(cum_CAURIS_2549, Comma8.), "(", put(pct_cum_CAURIS_2549, percent8.1), ")");
-	count_pct_cum_CAURIS_5064 = cats(put(cum_CAURIS_5064, Comma8.), "(", put(pct_cum_CAURIS_5064, percent8.1), ")");
-	count_pct_cum_CAURIS_65 = cats(put(cum_CAURIS_65, Comma8.), "(", put(pct_cum_CAURIS_65, percent8.1), ")");
-
-run;
-
-/*Final Table [count (%)]*/
-
-proc sql;
-create table final_combined_race as
-select
-
-/*Test reporting quarter for groups*/
-		testreportqtr "Quarter",
-/*Quarterly and total counts*/
-	CP_CRE,
-	c_auris,
-	cum_CP_CRE, 
-	cum_CAURIS,
-/*Percent counts in parenthesis*/
-	/*Race*/
-	count_pct_cum_CRE_w  'CRE White (%)',
-	count_pct_cum_CRE_b  'CRE Black/AA (%)',
-	count_pct_cum_CRE_a  'CRE Asian (%)',
-	count_pct_cum_CRE_nhpi  'CRE Native Hawaiian or Pacific Islander (%)',
-	count_pct_cum_CRE_oth  'CRE Other (%)',
-	count_pct_cum_CRE_unk  'CRE Unknown (%)',
-	count_pct_cum_CRE_aian  'CRE American Indian Alaskan Native (%)',
-	count_pct_cum_CRE_miss  'CRE Missing (%)',
-	count_pct_cum_c_auris_w  'C.auris White (%)',
-	count_pct_cum_c_auris_b  'C.auris Black/AA (%)',
-	count_pct_cum_c_auris_a  'C.auris Asian (%)',
-	count_pct_cum_c_auris_nhpi  'C.auris Native Hawaiian or Pacific Islander (%)',
-	count_pct_cum_c_auris_oth  'C.auris Other (%)',
-	count_pct_cum_c_auris_unk  'C.auris Unknown (%)',
-	count_pct_cum_c_auris_aian  'C.auris American Indian Alaskan Native (%)',
-	count_pct_cum_c_auris_miss  'C.auris Missing (%)'
-
-from count_percent_combine
-
-order by testreportqtr
-;
-create table final_combined_eth as
-select
-
-/*Test reporting quarter for groups*/
-		testreportqtr "Quarter",
-/*Quarterly and total counts*/
-	CP_CRE,
-	c_auris,
-	cum_CP_CRE, 
-	cum_CAURIS,
-	/*Ehtnicity*/
-	count_pct_cum_CP_CRE_hisp  'CRE Hispanic (%)',
-	count_pct_cum_CP_CRE_nohisp  'CRE Not Hispanic (%)',
-	count_pct_cum_CP_CRE_unkhisp  'CRE Unknown Hispanic (%)',
-	count_pct_cum_CP_CRE_misshisp  'CRE Missing Hispanic (%)',
-	count_pct_cum_c_auris_hisp  'C.auris Hispanic (%)',
-	count_pct_cum_c_auris_nohisp  'C.auris Not Hispanic (%)',
-	count_pct_cum_c_auris_unkhisp  'C.auris Unknown Hispanic (%)',
-	count_pct_cum_c_auris_mishisp  'C.auris Missing Hispanic (%)'
-
-from count_percent_combine
-
-order by testreportqtr
-;
-create table final_combined_gender as
-select
-
-/*Test reporting quarter for groups*/
-		testreportqtr "Quarter",
-/*Quarterly and total counts*/
-	CP_CRE,
-	c_auris,
-	cum_CP_CRE, 
-	cum_CAURIS,
-	/*Gender*/
-	count_pct_cum_CP_CRE_male  'CRE Male (%)',
-	count_pct_cum_CP_CRE_female  'CRE Female (%)',
-	count_pct_cum_CP_CRE_sexmiss  'CRE Missing Gender (%)',
-	count_pct_cum_c_auris_male  'C.auris Male (%)',
-	count_pct_cum_c_auris_female  'C.auris Female (%)',
-	count_pct_cum_c_auris_sexmiss  'C.auris Missing Gender (%)'
-
-from count_percent_combine
-
-order by testreportqtr
-;
-create table final_combined_age as
-select
-
-/*Test reporting quarter for groups*/
-		testreportqtr "Quarter",
-/*Quarterly and total counts*/
-	CP_CRE,
-	c_auris,
-	cum_CP_CRE, 
-	cum_CAURIS,
-	/*Age group*/
-	count_pct_cum_CRE_04  'CRE Age 0-4 (%)',
-	count_pct_cum_CRE_0517  'CRE Age 5-17 (%)',
-	count_pct_cum_CRE_1824  'CRE Age 18-24 (%)',
-	count_pct_cum_CRE_2549  'CRE Age 25-49 (%)',
-	count_pct_cum_CRE_5064  'CRE Age 50-64 (%)',
-	count_pct_cum_CRE_65  'CRE Age 65+ (%)',
-	count_pct_cum_CAURIS_04  'C.auris Age 0-4 (%)',
-	count_pct_cum_CAURIS_0517  'C.auris Age 5-17 (%)',
-	count_pct_cum_CAURIS_1824  'C.auris Age 18-24 (%)',
-	count_pct_cum_CAURIS_2549  'C.auris Age 25-49 (%)',
-	count_pct_cum_CAURIS_5064  'C.auris Age 50-64 (%)',
-	count_pct_cum_CAURIS_65  'C.auris Age 65+ (%)'
-
-from count_percent_combine
-
-order by testreportqtr
-;
-
-create table final_combined_mechanism as
-select
-/*Test reporting quarter for groups*/
-		testreportqtr "Quarter",
-/*Counts per quarter*/
-
-	CP_CRE "CP-CRE",
-	c_auris "Candida auris"
-
-from count_percent_combine
-
-order by testreportqtr
 ;
 quit;
 
@@ -1054,22 +775,8 @@ quit;
 
 /*Now we have individual tables AND a combined table of values for basic demographics and health equity questions*/
 
-/*Demographics
-proc print data=final_combined_mechanism noobs label;run;
-
-
-proc print data=final_combined_race noobs label;run;
-proc print data=final_combined_eth noobs label;run;
-proc print data=final_combined_gender noobs label;run;
-proc print data=final_combined_age noobs label;run;*/
-/*Equity
-proc print data=equity_final_pcts noobs label;run;*/
-
-
-
 
 /*Data steps for plots for health equity/ risk factor graphs*/
-
 
 
 /*Create additional data sets for plotting equity variables*/
@@ -1089,8 +796,6 @@ from analysis
 
 ;
 quit;
-proc contents data=hlth_equity_hce;run;
-
 
 data equity_plots;
 
@@ -1270,7 +975,6 @@ set qtr_percent_equity (drop =  mdro_rural  mdro_NONrural sum_hosp_y sum_hosp_n 
 
 run;
 
-proc contents data=transpose_prep_pcts;run;
 proc transpose data=transpose_prep_pcts out=equity_transpose_pcts;
     id testreportqtr;
 	format &qtr_end_transpose percent10.2;
@@ -1339,11 +1043,6 @@ select
 from demo_transpose_IR 
 ;
 quit;
-
-
-
-
-
 
 /*Export transposed tables to create template tables here. No need to save datasets at this point*/
 
@@ -1440,4 +1139,5 @@ run;
 
 
 /*Done!*/
+
 
