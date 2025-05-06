@@ -172,11 +172,28 @@ run;
 %mend bar_mdro_2;
 
 
+/*Macro for total IR/CIs but no panel*/
+%macro bar_mdro_3 (order=, title=);
+proc sgplot data=equIR_transp_final noborder noautolegend;
+
+	vbarparm category=_label_ response=ir_val/ barwidth=.5  nooutline 
+	limitlower=lcl limitupper=ucl limitattrs=(color=black) groupdisplay=cluster group=_label_; /*Don't change the order of these commands, it will suppress the error bars because SAS can be a dummy sometimes*/
+	
+
+	xaxis label = &title
+		valueattrs= (family="Arial" size=10)
+		labelattrs= (family="Arial" weight= bold size=10)
+			values=(&order);
+
+	yaxis label = 'IR/100K'
+		valueattrs= (family="Arial" size=10)
+		labelattrs= (family="Arial" weight=bold size=10);
+
+styleattrs datacolors=(mogb vligb);
+run;
+%mend bar_mdro_3;
 
 ods graphics /noborder;
-
-
-
 title; footnote;
 /*Set your output pathway here*/
 ods excel file="C:\Users\mhoskins1\Desktop\Work Files\MDRO_Graphs.xlsx";*<----- Named a generic overwriteable name so we can continue to reproduce and autopopulate a template;
@@ -214,10 +231,19 @@ run;
 title;
 
 /*Rural and SVI Plots*/
+/*Panel by race*/
 %bar_mdro_2 (group=rural_id, order="White" "Black/AA" "AI/AN" "Other" , label=rural_id.);
 %bar_mdro_2 (group=sviHI_id, order="White" "Black/AA" "Other" , label=sviHI_id.);
 
+/*No panel; total IR/CIs*/
+%bar_mdro_3 (title="Risk Index", order="Risk Index Greater than or equal to 0.80 IR" "Risk Index Less than 0.80 IR");
+%bar_mdro_3 (title="Rural Residency", order="Rural residency IR" "Non-Rural residency IR");
+
+
+
 ods excel close;
+
+
 
 
 
