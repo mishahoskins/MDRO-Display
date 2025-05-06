@@ -1,0 +1,556 @@
+/*
+ *------------------------------------------------------------------------------
+ * Program Name:  MDRO_statsig_20250326 
+ * Author:        Mikhail Hoskins
+ * Date Created:  03/26/2025
+ * Date Modified: .
+ * Description:   Statistical significance methods for MDROs
+ *
+ * Inputs:       MDRO_quarterly report_MACRO.sas , Part I_MDRO_quarterly report.sas , Part II_MDRO_quarterly report.sas : T:\HAI\Code library\Epi curve example\SAS Codes
+ * Output:       
+ * Notes:        Program looks at different methods for determining statistical significance of MDRO cases by race, SVI, and rurality
+ *
+ *------------------------------------------------------------------------------
+ */
+
+/*Now for statistical significance*/
+proc sql noprint;
+/*Assign values*/
+/*SVI*/
+/*black*/
+	select 
+		svihigh_ir_black 
+			into :black_svi_ir_h from svi_ir_race;
+	select
+		svilow_ir_black
+			into :black_svi_ir_l from svi_ir_race;
+
+/*white*/
+	select 
+		svihigh_ir_white 
+			into :white_svi_ir_h from svi_ir_race;
+	select
+		svilow_ir_white
+			into :white_svi_ir_l from svi_ir_race;
+
+/*Asian*/
+	select 
+		svihigh_ir_asian
+			into :asian_svi_ir_h from svi_ir_race;
+	select
+		svilow_ir_asian
+			into :asian_svi_ir_l from svi_ir_race;
+
+/*Other*/
+	select 
+		svihigh_ir_oth 
+			into :other_svi_ir_h from svi_ir_race;
+	select
+		svilow_ir_oth
+			into :other_svi_ir_l from svi_ir_race;
+
+/*Rurality*/
+/*black*/
+	select 
+		rural_ir_black 
+			into :black_ir_rural from svi_ir_race;
+	select
+		nonrural_ir_black
+			into :black_ir_nonrural from svi_ir_race;
+
+/*white*/
+	select 
+		rural_ir_white 
+			into :white_ir_rural from svi_ir_race;
+	select
+		nonrural_ir_white
+			into :white_ir_nonrural from svi_ir_race;
+
+/*Asian*/
+	select 
+		rural_ir_asian
+			into :asian_ir_rural from svi_ir_race;
+	select
+		nonrural_ir_asian
+			into :asian_ir_nonrural from svi_ir_race;
+
+/*Other*/
+	select 
+		rural_ir_oth
+			into :other_ir_rural from svi_ir_race;
+	select
+		nonrural_ir_oth
+			into :other_ir_nonrural from svi_ir_race;
+
+
+quit;
+
+/*let statements for IR race values*/
+
+/*SVI*/
+%let black_svi_ir_h = &black_svi_ir_h;
+%let black_svi_ir_l = &black_svi_ir_l;
+
+%let white_svi_ir_h = &white_svi_ir_h;
+%let white_svi_ir_l = &white_svi_ir_l;
+
+%let asian_svi_ir_h = &asian_svi_ir_h;
+%let asian_svi_ir_l = &asian_svi_ir_l;
+
+%let other_svi_ir_h = &other_svi_ir_h;
+%let other_svi_ir_l = &other_svi_ir_l;
+/*Rural*/
+%let rural_ir_black = &black_ir_rural;
+%let nonrural_ir_black = &black_ir_nonrural;
+
+%let rural_ir_white = &white_ir_rural;
+%let nonrural_ir_white = &white_ir_nonrural;
+
+%let rural_ir_asian = &asian_ir_rural;
+%let nonrural_ir_asian = &asian_ir_nonrural;
+
+%let rural_ir_oth = &other_ir_rural;
+%let nonrural_ir_oth = &other_ir_nonrural;
+
+
+/*For gneral SVI/Rurality ttest*/
+proc sql;
+create table equity_sig_rural as
+select
+
+	case when risk_factor in ("Cumulative MDRO in quarter: Rural IR" , "Cumulative MDRO in quarter: Non-rural IR")
+		then risk_factor else '' end as rural_factor ,
+
+	case when calculated rural_factor not in ('')  then Q4 else . end as IR_rural format 10.2
+
+from transpose_equity_pcts
+	having rural_factor not in ('')
+;
+
+create table equity_sig_svi as
+select 
+
+	case when risk_factor in ("Cumulative MDRO in quarter: SVI greater than or equal to 0.80 IR" , "Cumulative MDRO in quarter: SVI less than 0.80 IR")
+		then risk_factor else '' end as svi_factor ,
+
+	case when calculated svi_factor not in ('') then Q4 else . end as IR_svi format 10.2
+
+from transpose_equity_pcts
+	having svi_factor not in ('')
+;
+quit;
+
+proc print data=equity_sig_rural;run;
+/*flip density variables for easier reference category*/
+data prep;
+set analysis;
+
+	density_2=.;
+	if density in (1) then density_2=0;
+	if density in (0) then density_2=1;
+
+
+	race_pval = Race1;
+	if Race1 in ('Black or African American') then race_pval = 'Black';
+
+	white_binary = .;
+	if Race1 in ('White') then white_binary = 0;
+	if Race1 not in ('White', '') then white_binary =1;
+
+	case=1;
+
+run;
+/*Chi sq. and relative risk comparing likelyhood of a case in rura/low svi area with being "not-white"*/
+proc freq data=prep; tables density_2*white_binary svi*white_binary / chisq fisher norow nocol nopercent nocum;run;
+
+
+/*Logistic reg for density*/
+proc logistic data =prep;
+	class white_binary ( ref='0')/ param = ref ;
+		model density_2 (event='1') = white_binary 
+		/*/  parmlabel selection = backward slstay=0.05;*/;
+run;
+
+
+			/*Because it's not significant at the binary level, we'll run it at the individual race level*/
+			proc logistic data =prep;
+				class race1 ( ref='White')/ param = ref ;
+					model density_2 (event='1') = race1;
+			run;
+
+
+/*Logistic reg for svi*/
+proc logistic data =prep;
+	class white_binary ( ref='0')/ param = ref ;
+		model svi (event='1') = white_binary 
+		/*/  parmlabel selection = backward slstay=0.05;*/;
+run;
+
+
+
+
+
+
+
+
+
+
+
+
+data analysis_2;
+	set prep;
+
+	ir_race_svi = .;
+	ir_race_density = .;
+
+/*SVI*/
+if race_pval in ('Black') and svi in (1) then ir_race_svi = &black_svi_ir_h;
+if race_pval in ('Black') and svi in (0) then ir_race_svi = &black_svi_ir_l;
+
+if race_pval in ('White') and svi in (1) then ir_race_svi = &white_svi_ir_h;
+if race_pval in ('White') and svi in (0) then ir_race_svi = &white_svi_ir_l;
+
+if race_pval in ('Asian') and svi in (1) then ir_race_svi = &asian_svi_ir_h;
+if race_pval in ('Asian') and svi in (0) then ir_race_svi = &asian_svi_ir_l;
+
+if race_pval in ('Other') and svi in (1) then ir_race_svi = &other_svi_ir_h;
+if race_pval in ('Other') and svi in (0) then ir_race_svi = &other_svi_ir_l;
+
+/*Density*/
+if race_pval in ('Black') and density in (1) then ir_race_density = &black_ir_rural;
+if race_pval in ('Black') and density in (0) then ir_race_density = &black_ir_nonrural;
+
+if race_pval in ('White') and density_2 in (1) then ir_race_density = &white_ir_rural;
+if race_pval in ('White') and density_2 in (0) then ir_race_density = &white_ir_nonrural;
+
+if race_pval in ('Asian') and density_2 in (1) then ir_race_density = &asian_ir_rural;
+if race_pval in ('Asian') and density_2 in (0) then ir_race_density = &asian_ir_nonrural;
+
+if race_pval in ('Other') and density_2 in (1) then ir_race_density = &other_ir_rural;
+if race_pval in ('Other') and density_2 in (0) then ir_race_density = &other_ir_nonrural;
+
+
+run;
+
+
+data analysis_2;
+	set analysis_2 (keep = race_pval svi ir_race_svi ir_race_density density_2 OWNING_JD);
+
+		if race_pval in ("Unknown", "American Indian Alaskan Native", "Asian") then delete; /*Delete for SVI*/
+
+run;
+
+/*No race categories with just one outcome*/
+proc freq data=analysis_2; tables race_pval*svi race_pval*density_2/nocol nopercent;run;
+proc print data=analysis_2;run;
+
+proc sort data=analysis_2;
+	by race_pval;
+run;
+
+
+
+
+/*SVI*/
+proc import
+datafile = "&ncedssdata./svi_counties_values.xlsx"
+out=svi_raw
+dbms=xlsx replace;
+getnames=yes;
+
+run;
+
+proc sort data=svi_raw; by county;run;
+proc print data=test_l;where race_pval in ('Other');run;
+
+data svi_raw;
+set svi_raw;
+
+	population_ctny = input(census_pop, comma9.);
+run;
+PROC SQL;
+create table test_l as
+    SELECT 
+        a.*, 
+
+        b.svi as svi_raw,
+		population_ctny
+    FROM 
+        analysis_2 AS a
+    LEFT JOIN 
+        svi_raw AS b
+    ON 
+        a.owning_jd = b.county;
+QUIT;
+
+%macro ttest_by_race;
+    /* Define the three race categories */
+    %let races = White Black Other;
+
+    /* Loop over each race and process */
+    %do i = 1 %to %sysfunc(countw(&races, %str( )));
+        %let race = %scan(&races, &i, %str( ));
+
+        /* Capture t-test results for each race group */
+        	ods output TTests=ttest_svi_&race;  /* Store results in a separate dataset */
+			title "Grouped by &race, SVI";
+        proc ttest data=test_l;
+            class svi;  /* Defines the grouping variable: risk_group */
+            var svi_raw;    /* The outcome variable: incidence rate */
+            where race_pval = "&race";  /* Filter by Race1 variable */
+        run;
+        ods output close;  /* Close ODS output */
+
+        /* Filter for the pooled result and rename the row */
+        data pooled_svi_result_&race; length Method $32.;
+            set ttest_svi_&race;
+            where Method = 'Pooled';  /* Keep only the pooled results */
+            /* Rename the row to 'Pooled t-test' */
+            if Method = 'Pooled' then Method = "&race SVI Pooled t-test";
+        run;
+
+%
+		        ods output TTests=ttest_density_&race;  /* Store results in a separate dataset */
+				title "Grouped by &race, Pop. Density";
+        proc ttest data=test_l;
+            class density_2;  /* Defines the grouping variable: risk_group */
+            var population_ctny;    /* The outcome variable: incidence rate */
+            where race_pval = "&race";  /* Filter by Race1 variable */
+        run;
+        ods output close;  /* Close ODS output */
+
+        /* Filter for the pooled result and rename the row */
+        data pooled_density_result_&race; length Method $32.;
+            set ttest_density_&race;
+            where Method = 'Pooled';  /* Keep only the pooled results */
+            /* Rename the row to 'Pooled t-test' */
+            if Method = 'Pooled' then Method = "&race Density Pooled t-test";
+        run;
+    %end;
+%mend;
+
+/* Run the macro to process all races */
+%ttest_by_race;
+
+/* Combine the results from all races into a single dataset */
+data final_results ;
+length variable $32.;
+    set 
+        pooled_svi_result_White
+        pooled_svi_result_Black
+        pooled_svi_result_Other
+
+		pooled_density_result_White
+        pooled_density_result_Black
+        pooled_density_result_Other
+
+
+
+;
+run;
+/* Create a report with the combined t-test results */
+title;
+proc report data=final_results nowd;
+    column method ProbT Variances  DF;
+    define method / display 'Statistic';  /* Display the statistic name */
+    define variances / display 'Variances'; /* Display the t-statistic */
+    define ProbT / display 'P-value'; /* Display the p-value */
+    define DF / display 'Degrees of Freedom'; /* Display the degrees of freedom */
+run;
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/*																   |				    |																									 */
+/*-----------------------------------------------------------------|LOGISTIC REGRESSION"|----------------------------------------------------------------------------------------------------*/
+/*																   |				    |																									 */
+/*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* Split data into two datasets : 70%- analysis 30%- validation */
+Proc Surveyselect data=test_l out=split seed= 1234 samprate=.7 outall;
+Run;
+
+
+data analysis_logistic validation;
+set split;
+	if selected = 1 then output analysis_logistic;
+	else output validation;
+
+
+run;
+
+proc sql;
+create table analysis_logistic as
+select *,
+
+	log(population_ctny) as log_population
+
+	from analysis_logistic
+;
+quit;
+
+
+proc sort data= analysis_logistic;
+	by  svi_raw;
+
+run;
+
+proc print data= analysis_logistic noobs;run;
+
+
+%macro normal(input=, vars=, output=);
+
+ods output TestsForNormality = Normal;
+proc univariate data = &input normal;
+var &vars;
+run;
+ods output close;
+
+data &output;length Status $24.;
+set Normal ( where = (Test = 'Shapiro-Wilk'));
+if pValue > 0.05 then Status ="Normal";
+else Status = "Non-normal";
+drop TestLab Stat pType pSign;
+run;
+%mend;
+
+%normal(input=analysis_logistic, vars=svi_raw population_ctny log_population , output=Normality);
+
+proc print data=normality noobs label;run;
+
+/*Fit a normal curve to these and view*/
+proc sgplot data=analysis_logistic;
+
+	histogram log_population / ;
+    density log_population /  type=normal;
+run;
+
+proc sgplot data=analysis_logistic;
+
+	histogram population_ctny / ;
+    density population_ctny /  type=normal;
+run;
+
+proc sgplot data=analysis_logistic;
+
+	histogram svi_raw / ;
+    density svi_raw /  type=normal;
+run;
+
+
+
+/*Not exactly normal... model anyway. We don't need normality to run logistic regression (it'd be nice though)*/
+ods graphics on / noborder ; 
+title;
+
+/* Logistic Model*/
+/*1. Probability of SVI = 1 based on population size increasing*/
+proc logistic data=analysis_logistic plots=EFFECT plots=ROC;
+model svi (event='1') = population_ctny / outroc = rocout;
+	oddsratio population_ctny;
+	output out=estimated_svi predicted=estprob l=lower95 u=upper95; 
+run;
+
+/*2. Probability of SVI = 1 based on LOG population size increasing*/
+proc logistic data=analysis_logistic plots=EFFECT plots=ROC;
+model svi (event='1') = log_population / outroc = rocout;
+	oddsratio log_population;
+	output out=estimated_svi predicted=estprob l=lower95 u=upper95; 
+run;
+
+
+
+/*3. Probability of 'Rural' classification based on SVI score increasing*/
+proc logistic data=analysis_logistic plots=EFFECT plots=ROC;
+model density_2 (event='1') = svi_raw / outroc = rocout;
+	oddsratio svi_raw;
+	output out=estimated_rural predicted=estprob l=lower95 u=upper95;
+run;
+
+
+
+/*Quick interpretation; if you have an elevated SVI, higher probably of living in a rural county. BUT if you live in a high-risk county (over 0.8 SVI) it doesn't necessarily mean you're rural*/
+proc print data=estimated_svi noobs label;run;
+proc print data=estimated_rural noobs label;run;
+
+
+
+proc contents data=analysis;run;
+
+
+/*We are going to use a binomial test in this situation: Is the proportion of [insert race] in a high SVI/rural location significantly different than a low SVI/urban location?*/
+proc sql;
+create table report_statsig as
+select
+
+	svi,
+	density,
+	RACE1 
+
+from analysis
+;
+
+quit;
+
+/*SVI by each race: does the proportion of each race differ significantly whether they are in a high or low SVI area?*/
+proc freq data=report_statsig;
+title 'Race= White';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('White');
+run;
+proc freq data=report_statsig;
+title 'Race= Black or African American';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Black or African American');
+run;
+proc freq data=report_statsig;
+title 'Race= Other';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Other');
+run;
+proc freq data=report_statsig;
+title 'Race= Unknown';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Unknown');
+run;
+proc freq data=report_statsig;
+title 'Race= Asian';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Asian');
+run;
+proc freq data=report_statsig;
+title 'Race= American Indian Alaska Native';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('American Indian Alaskan Native');
+run;
+
+
+
+/*Density by each race: does the proportion of each race differ significantly whether they are in a rural or nonrural area?*/
+proc freq data=report_statsig;
+title 'Race= White';
+	tables density /binomial(p=0.5 level='0');/*level = '0' here because rural density = 0 and that is our measuring point*/
+		where RACE1 in ('White');
+run;
+proc freq data=report_statsig;
+title 'Race= Black or African American';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Black or African American');
+run;
+proc freq data=report_statsig;
+title 'Race= Other';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Other');
+run;
+proc freq data=report_statsig;
+title 'Race= Unknown';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Unknown');
+run;
+proc freq data=report_statsig;
+title 'Race= Asian';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Asian');
+run;
+proc freq data=report_statsig;
+title 'Race= American Indian Alaska Native';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('American Indian Alaskan Native');
+run;
