@@ -8,13 +8,7 @@
 
 */
 
-/* format date for footnotes (if necessary) */
-data _null_; 
-	today=put(date(),worddate18.); 
-	call symputx('date',today); 
-run;
-
-
+/*Get C.auris and STRA (GAS)*/
 proc sql;
 create table CASE_COMBO as
 select 
@@ -31,7 +25,7 @@ where s.CLASSIFICATION_CLASSIFICATION in ("Confirmed", "Probable")
 	and s.REPORT_TO_CDC = 'Yes';
 
 quit;
-
+/*Get CRE*/
 proc sql;
 create table CASE_COMBO_2 as
 select 
@@ -49,14 +43,16 @@ where s.CLASSIFICATION_CLASSIFICATION in ("Confirmed", "Probable")
 
 quit;
 
-
 data CASE_COMBO_SUB;
 set CASE_COMBO CASE_COMBO_2;
 run;
 
 
+proc contents data=CASE_COMBO_SUB order=varnum;run;
 
 
+
+/*Keep standard variables and define timeframe*/
 proc sql;
 create table HAI_updated as
 select 
@@ -83,7 +79,7 @@ select
 		RACE6,
 /*This piece should match exactly or almost exactly to the dashboard code found here: https://github.com/NC-DPH/Communicable-Disease-Dashboards/blob/main/NCD3v2%20In%20Progress.sas
 		some of the variable names may be different but the counts need to align*/
-
+		MMWR_DATE_BASIS,
 	case 
 	    when MMWR_DATE_BASIS ne . then MMWR_DATE_BASIS
 		when SYMPTOM_ONSET_DATE ne . then SYMPTOM_ONSET_DATE
@@ -103,7 +99,7 @@ select
 	STATUS
 
 from CASE_COMBO_sub
-where calculated EVENT_DATE >= '01JAN2023'd and calculated EVENT_DATE <= "&qtr_dte"d
+where calculated EVENT_DATE >= "&yr_begin"d and calculated EVENT_DATE <= "&qtr_dte"d
 	and STATUS = 'Closed'
 	/*and STATE in ('NC' ' ')*/
 order by TYPE_DESC, YEAR, OWNING_JD;
@@ -112,143 +108,209 @@ order by TYPE_DESC, YEAR, OWNING_JD;
 quit;
 
 
-/*Combine all HAI data sets*/
-data HAI3 ;
-length Reporting_Date_Type $25;
-set HAI_updated;
-Disease_Group='Healthcare Acquired Infection';
+
+proc sql; 
+create table dates_investigation as
+select
+
+	input(case_id, best12.) as case_id_new,
+	type,
+	EVENT_DATE,
+	MMWR_DATE_BASIS
+
+from HAI_updated
+	where type in ('CRE')
+;
+quit;
+
+
+
+
+/*Now import NCEDSS line lists for more demographic variables*/
+proc import
+datafile = "&ncedssdata./All_Models_Deidentified_Cases_and_Contacts_Line_List_by_Date_for_Reporting_20250620113744.xlsx"
+out=ncedss_specdate
+dbms=xlsx replace;
+getnames=yes;
+
 run;
+proc contents data=ncedss_specdate order=varnum;run;
 
-/*Using a quick age-group recode to confine to the year we want to evaluate: not sure why I put this here but yea... here it is.*/
-data work.records; 
-	set HAI3;
-
-
-	format age_group $12.;
-	age_group = " ";
-
-	if age <5 then age_group ="0-04";
-	if 5<= age <18 then age_group ="05-17";
-	if 18<= age <25 then age_group ="18-24";
-	if 25<= age <50 then age_group ="25-49";
-	if 50<= age <65 then age_group ="50-64";
-	if 65<= age then age_group ="65+";
-
+proc sql;
+create table scatter as
+select
 	
+	a.case_id_new,
+	a.type,
 
-	where year = &year_dte.; *<--- set the year here to confine data roughtly to year(s) we're interested in. If looking over many years comment out;
+	/*crude values*/
+	intnx("month", (a.EVENT_DATE), 0, "end") as report_event_date "Event Date Month" format=MONYY5.,
+	intnx("month", (a.MMWR_DATE_BASIS), 0, "end") as report_MMWR "Month" format=MONYY5.,
+	intnx("month", (b.Specimen_Date), 0, "end") as report_spec_dte "Specimen Month" format=MONYY5.,
+	intnx("month", (b.Symptom_Onset_Date), 0, "end") as report_symp_dte "Month" format=MONYY5.,
+
+		calculated report_event_date - calculated report_spec_dte as difference_rep_spec "Report and Specimen Date difference",
+
+		case when calculated difference_rep_spec in (0) then 1 else 0 end as diff_date_flag "Report and Specimen Date are Same"
+
+
+
+
+from dates_investigation as a left join ncedss_specdate as b on a.case_id_new = b.EVENT_ID
+
+	order by report_event_date	
+;
+
+quit;
+
+
+ods graphics/ noborder;
+proc sgplot data=scatter noborder noautolegend;
+
+		histogram difference_rep_spec / transparency=0.5 fillattrs=(color= papk);
+		density difference_rep_spec / type=normal lineattrs=(color="red");
 /*
-	if type in ('CAURIS') and REPORT_TO_CDC not in ('Yes') then delete;
-	if type in ('CRE') and REPORT_TO_CDC in ('') then delete;									<---- defined this earlier 1/31/2025
-	if type in ('STRA') and REPORT_TO_CDC not in ('Yes') then delete;
+histogram log_report_event_date /transparency=0.5 fillattrs=(color= vligb);
+	density log_report_event_date / type=normal lineattrs=(color="blue");
+
+histogram log_report_spec_dte / transparency=0.5 fillattrs=(color= papk);
+		density log_report_spec_dte / type=normal lineattrs=(color="red");
+
+
+
+
+histogram log_report_MMWR / transparency=0.5 fillattrs=(color= VLIGB);
+		density log_report_MMWR / type=normal lineattrs=(color="blue");
+
+
+
+histogram log_report_symp_dte / transparency=0.5 fillattrs=(color= VLIV);
+		density log_report_symp_dte / type=normal lineattrs=(color="purple");
 */
-run;
+		xaxis valueshint values=(9.5 to 10.5 by 0.2); /*display =(novalue);*/
 
-
-
-/*Now import NCEDSS line lists for more demographic variables: these are additional datasets from NCEDSS that you'll need to pull within the defined dates and save/update in the prior macro step*/
-proc import
-datafile = "&ncedssdata./&CREfile..xlsx"
-out=test_import
-dbms=xlsx replace;
-getnames=yes;
-
-run;
-/*Import risk factor quesstions from NCEDSS*/
-proc import
-datafile = "&ncedssdata./&caurisfile..xlsx"
-out=caurisRH_import
-dbms=xlsx replace;
-getnames=yes;
-
-run;
-/*Rename event ID variable for CAURIS*/
-data caurisRH_import2;
-set caurisRH_import (rename=(CaseID=case_ID));
+		inset ("Blue=" = "Event Date Distribution" "Red=" = "Specimen Date Distribution" /*"Yellow=" = "Speciment Date Distribution" "Purple=" = "Symptom Onset Date Dist."*/) / position=topleft;
 
 run;
 
-/*Import risk factor questions/additional data from NCEDSS for GAS(STRA)*/
-proc import
-datafile = "&ncedssdata./&GASfile..xlsx"
-out=GASRH_import
-dbms=xlsx replace;
-getnames=yes;
+proc freq data=scatter; tables diff_date_flag / norow nocol nocum;run;
+
+proc ttest data=scatter;
+
+paired report_event_date*report_spec_dte;
+
+	where diff_date_flag in (0);
 
 run;
 
-proc print data=caurisRH_import2 noobs;run;
 
+proc univariate data=scatter normal;
+    var difference_rep_spec;
+    histogram difference_rep_spec / normal(color=blue);
 
+    inset mean std median mode / position=ne;
 
-
-
-/*Sort and merge with "records" to create an expanded variable pool*/
-proc sort data=test_import; by case_ID;run;
-proc sort data=work.records; by case_ID;run;
-
-
-data test_merge;
-merge work.records (in=a) test_import work.caurisRH_import2;
-
-	by case_ID;
-
-	if a;
-
+		where diff_date_flag in (0);
 run;
 
-/*Deduplicate because we'll have many tests for one person*/
-proc sort data=test_merge out=test_merge_dedupe nodupkey;
+proc sgplot data=scatter noborder;
 
-	by type case_ID;
+vbox report_event_date / transparency=0.5;
+vbox report_spec_dte / transparency=0.5;
+	yaxis display=(nolabel);
+run;
 
+/*Missing values by variable*/
+proc format; 
+   value $missfmt ' '='Missing' other='Not Missing'; 
+   value missfmt .  ='Missing' other='Not Missing'; 
+run;
+
+
+proc means data=scatter maxdec=0 mean median max min;
+
+var difference_rep_spec;
+run;
+
+proc freq data=scatter; 
+/*format _character_ $missfmt.; 
+table _character_ / missing missprint nocum nopercent; */
+format _numeric_ missfmt.; 
+tables report_event_date report_spec_dte diff_date_flag/ missing missprint nocum ; 
 run; 
+/*Equity vars to keep
 
-/*Output our working datasets*/
+RECENT_TRAVEL : RNT_TRV (source: risk_travel_cd)
+HOSPITALIZED
+HCE_HOSPITAL_NAME_0 : HCE (source: risk_health_care_exp_cd)
+
+
+
+
+proc contents data=denorm.clinic_hospitalizations order=varnum;run;
+proc freq data=denorm.clinic_hospitalizations; tables CODE /norow nocol nopercent;run;
+
+*/
+
+/*Now join with disease specific denormalized tables for certain variables for analysis. Some re-coding to reassign missing values as unknown or define them as "Missing" for graphs/tables.*/
+proc sql;
+create table test_import as
+select distinct /*Only want one value per event_id (and all other variables too).*/
+
+	a.*,
+	/*b. are variables needed from CRE risk history for equity/risk factor q's*/
+	b.HCE,
+	/*c. mechanism for CRE*/
+	case when c.CRE_CARB_PRODUCE_MECHANISM not in ('') then c.CRE_CARB_PRODUCE_MECHANISM 
+		 else "Missing" end as mechanism,
+	/*d. are variables needed from C.auris risk history for equity/risk factor q's*/
+	RNT_TRV as travel,
+	/*e. hospitaliztion*/
+	case when e.HOSPITALIZED not in ('','Unknown') then e.HOSPITALIZED
+		 else 'Unknown' end as hospitalized_new
+	/*f. are variables need from GAS risk history for equity/risk factor q's*/
+
+
+	/*join all tables*/
+from HAI_updated as a 
+	left join denorm.risk_health_care_exp_cd as b on a.case_ID = b.case_ID
+	left join denorm.laboratory_dd_table_cre as c on a.case_ID = c.case_ID
+	left join denorm.risk_travel_cd as d on a.case_ID = d.case_ID
+	left join denorm.clinic_hospitalizations as e on a.case_ID = e.case_ID
+
+
+	/*left join denorm.gas_risk as E on a.case_ID = E.case_ID*/
+
+
+;
+
+quit;
+
+
+/*Check for duplicates obs should = 0*/
+proc sql;
+create table dupes as
+select
+	case_ID, 
+	count(*) as id_count
+
+from test_import
+	group by case_ID
+	having Count(*) >1
+;
+quit;
+
+
+
+
+/*Output our working datasets into two. One for standard evalautions and one for risk factor/equity evaluation.*/
 data SASdata.healthequitySAS;
-	set work.test_merge_dedupe;
+	set work.test_import;
 run;
 
-data SASdata.recordsSAS;
-	set work.records;
+data SASdata.recordssas;
+	set work.test_import;
+	where type in ('CRE');
 run;
 
-/*You can incorporate different analyses here.
 
-
-Additional analysis: CRE screening created 11/18/2024.
-
-
-
-*/
-/*NCEDSS line lists 2019-2023 CRE*/
-proc import
-datafile = "&ncedssdata./CRE_2019_2023.xlsx"
-out=CRE_19_23
-dbms=xlsx replace;
-getnames=yes;
-
-run;
-
-proc sort data=CRE_19_23; by case_ID;run;
-proc sort data=work.HAI3; by case_ID;run;
-
-data CRE_merge;
-merge work.HAI3 (in=a) CRE_19_23 ;
-
-	by case_ID;
-
-	if a;
-
-run;
-/*Deduplicate because we'll have many tests for one person*/
-proc sort data=CRE_merge out=CRE_merge_dedupe nodupkey;
-
-	by type case_ID;
-
-	where type in ('CRE') and 2019 LE year LE 2023;
-run; 
-/*Output dataset for analysis*/
-data SASdata.analysis_CRE;
-	set work.CRE_merge_dedupe;
-run;
