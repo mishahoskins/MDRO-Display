@@ -4,7 +4,8 @@
 
 /*Author: M. Hoskins 10/01/2024 
 		Most recent edits:  11/18/2024 <---- add a line for each time we make major edits!
-							12/20/2024 
+							12/20/2024
+							04/25/2025 
 
 
 Instructions:
@@ -72,29 +73,28 @@ options nofmterr;
 title;footnote;
 
 /*Macros -- Don't update these*/
-libname denorm '\\10.19.201.242\denormal\20250101'; /*This can be updated as needed to produce most recent counts; M. Hilton provides a new extract monthly*/
+libname denorm '\\10.19.201.242\denormal\20250502'; /*This can be updated as needed to produce most recent counts; M. Hilton provides a new extract monthly*/
 libname SASdata 'T:\HAI\Code library\Epi curve example\SASData'; /*SAS datasets location*/
 %let ncedssdata = T:\HAI\Code library\Epi curve example/ncedss extracts;*<----- Pathway to NCEDSS extracts for additional data (do not need to update);
 
 /*Macros -- Update these*/
-%let qtr_dte = 31dec2023; *<------ Set the end date of the quarter you want to look at end dates for each quarter are: Q1-MARCH31 Q2-JUNE30 Q3-SEPTEMBER30 Q4-DECEMBER31. Format as DDMMMYYYY;
+/*Disease macro: Update for each MDRO , CRE, CAURIS, GAS (STRA in the macro)*/
+%let disease = CRE;
+%put &disease;
+/*------------*/
+%let yr_begin = 01jan2017; *<----- set the year beginning;
+%put &yr_begin;
+%let qtr_dte = 31DEC2024; *<------ Set the end date of the quarter you want to look at end dates for each quarter are: Q1-MARCH31 Q2-JUNE30 Q3-SEPTEMBER30 Q4-DECEMBER31. Format as DDMMMYYYY;
 %put &qtr_dte;
 %let qtr_num = Q4; *<----- Set the quarter number (Q1, Q2, Q3, or Q4);
 %put &qtr_num;
-%let year_dte = 2023;*<----- Set the year;
+%let year_dte = 2025;*<----- Set the year;
 %put &year_dte;
 
-%let qtr_end_transpose = _31_Dec_2023; *<----- write the quarter end date in the format _DD_Mmm_YYYY for the transpose code, it will save a step later on;
+%let qtr_end_transpose = _31_DEC_2024; *<----- write the quarter end date in the format _DD_Mmm_YYYY for the transpose code, it will save a step later on;
 %put &qtr_end_transpose;
 
-
-
-
-%let caurisfile = cauris_risk history_2023; *<----- C. auris file name (whatever you save it as);
-%put caurisfile;
-%let CREfile = GCDCCRELineListbySpecimenCollectionDate_20241011093744; *<----- CRE file name (whatever you save it as);
-%put CREfile;
-
+/*I like to send the outputs to my local drive, don't forget to save to the shared*/
 %let outputpath = C:\Users\mhoskins1\Desktop\Work Files;
 %put &outputpath;
 
@@ -142,10 +142,8 @@ CDC Link: https://svi.cdc.gov/map/
 		~and~
 Description of EDRC (Economically Disadvantaged Rural Communities) : https://files.nc.gov/dps/documents/2022-08/BRIC2022-SVImap.pdf?VersionId=DuyqrHwlGqToM1aqh1k2_uZRsItM7fqn */
 
-%let svihighpop = 1198340;
-%let svilowpop = 9637151;
-
-
+%let svihighpop = 1124159;
+%let svilowpop = 9711332;
 
 
 /*Population denominators for SVI and density by race 2023. File here: T:\HAI\Code library\Epi curve example\ncedss extracts derived from CDC census tracks*/
