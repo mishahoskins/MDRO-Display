@@ -8,26 +8,10 @@ title;footnote;
 
 
 data analysis;
+
 set SASdata.healthequitySAS;
-
-	length healthcare_experience $72.;
-	length travel $8.;
-	length hospitalized_new $7.;
-	length screening_event $26.;
-
-	/*i.travel*/
-	travel= "Missing";
-	if recent_travel in ("Yes") or RECENT_TRAVEL in ("YES") or RECENT_TRAVEL in ("Yes") then travel="Yes";
-	if recent_travel in ("No") or RECENT_TRAVEL in ("NO") or RECENT_TRAVEL in ("No") then travel="No";
-	if recent_travel in ("Unknown") or RECENT_TRAVEL in ("UNKNOWN") or RECENT_TRAVEL in ("Unknown") then travel="Unknown";
-
-
-
-	/*iii. hospitalization status*/
-	hospitalized_new= "Unknown/Missing";
-	if HOSPITALIZED in ("Yes") or HCE_HOSPITAL_NAME_0 not in ("") then hospitalized_new="Yes";
-	if HOSPITALIZED in ("No")  then hospitalized_new="No";
-
+/*First thing here is to confine to the disease we want to run, defined in MACRO, it will determine what our output reflects: CRE, CAURIS, or STRA (GAS)*/
+	if type not in ("&disease") then delete; /*Runs only the disease you specify*/
 	/*Rurality
 			1=non-rural
 			0=rural
@@ -93,22 +77,10 @@ set SASdata.healthequitySAS;
 	else svi=0;
 	
 
-	if (find (REASON_FOR_TESTING,'Colonization screening')>0) or (find (REASON_FOR_TESTING,'Screening in community')>0)
-		then screening_event='Yes';
+	where  EVENT_DATE >= "01jan2024"d and  EVENT_DATE <= "&qtr_dte"d;
 
-	if  (find (REASON_FOR_TESTING,'Part of clinical care')>0)
-		then screening_event='No';
-
-	if REASON_FOR_TESTING in (' ') 
-		then screening_event='Mising/Unknown';
-
-
-
-	where type in ("CRE", "CAURIS");
 
 run;
-
-
 
 
 /*End cleaning; begin tables*/
@@ -124,12 +96,13 @@ select
 	sum (case when type in ('CRE','CAURIS') and travel in ('Yes') then 1 else 0 end) as sum_travel_y "MDRO in Quarter, Travel: Yes",
 	sum (case when type in ('CRE','CAURIS') and travel in ('No') then 1 else 0 end) as sum_travel_n "MDRO in Quarter, Travel: No",
 	sum (case when type in ('CRE','CAURIS') and travel in ('Unknown') then 1 else 0 end) as sum_travel_u "MDRO in Quarter, Travel: Unknown",
-	sum (case when type in ('CRE','CAURIS') and travel in ('Missing') then 1 else 0 end) as sum_travel_m "MDRO in Quarter, Travel: Missing"
+	sum (case when type in ('CRE','CAURIS') and travel in (' ') then 1 else 0 end) as sum_travel_m "MDRO in Quarter, Travel: Missing"
 
 
 from analysis
 	group by testreportqtr 
 ;
+
 /*healthcare experience is a bit more complex. We want to search across all experiences, so an individual could be in a LTCF but diagnosed in an acute care setting. The result would be grouping in each, ie. people can fall into more than
 one bucket for healthcare experience.*/
 create table hlth_equity_HCE as
@@ -138,80 +111,32 @@ select
 		intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
 	/*MDRO healthcare experience*/
-	sum (case when hce in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_0 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_1 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_2 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_3 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_4 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_5 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) +
-	sum (case when hce_6 in ('Acute Care Hospitalization', 'ACUTE_HOSP') then 1 else 0 end) 
+	sum (case when hce in ('Acute Care Hospitalization') then 1 else 0 end)
 		as sum_hce_acute "MDRO in Quarter, HCE: Acute Care Hospital",
 
-	sum (case when hce in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_0 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_1 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_2 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_3 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_4 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_5 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) +
-	sum (case when hce_6 in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)', 'LTC') then 1 else 0 end) 
+	sum (case when hce in ('Long term care facility - resident (e.g. nursing home, rest home, rehab)') then 1 else 0 end)
 		as sum_hce_ltc "MDRO in Quarter, HCE: Long term care facility",
 
-
-	sum (case when hce in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_0 in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_1 in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_2 in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_3 in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_4 in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_5 in ('No', 'None') then 1 else 0 end) +
-	sum (case when hce_6 in ('No', 'None') then 1 else 0 end) 
+	sum (case when hce in ('No') then 1 else 0 end)
 		as sum_hce_no "MDRO in Quarter, HCE: None",
 
-	sum (case when hce in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_0 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_1 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_2 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_3 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_4 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_5 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) +
-	sum (case when hce_6 in ('Long term acute care hospital (LTACH)', 'LTACH') then 1 else 0 end) 
+	sum (case when hce in ('Long term acute care hospital (LTACH)') then 1 else 0 end)
 		as sum_hce_ltach "MDRO in Quarter, HCE: Long Term Acute Care Hospital",
 
-	sum (case when hce in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_0 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_1 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_2 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_3 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_4 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_5 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) + 
-	sum (case when hce_6 in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis', 'Complex medical devices (e.g. duodenoscopes)', 'HEMODIALYSIS' ,'OTHER_SURGERY') then 1 else 0 end) 
+	sum (case when hce in ('Surgery (besides oral surgery), obstetrical or invasive procedure', 'Hemodialysis' , 'Complex medical devices (e.g. duodenoscopes)')
+			  then 1 else 0 end)
 		as sum_hce_surg "MDRO in Quarter, HCE: Surgery, Hemodialysis, other procedure(s)",
 
-	sum (case when hce in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_0 in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_1 in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_2 in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_3 in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_4 in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_5 in ('Unknown') then 1 else 0 end) +
-	sum (case when hce_6 in ('Unknown') then 1 else 0 end) 
+	sum (case when hce in ('Unknown') then 1 else 0 end)
 		as sum_hce_unk "MDRO in Quarter, HCE: Unknown",
 
-	sum (case when hce in ('Missing') then 1 else 0 end) +
-	sum (case when hce_0 in ('Missing') then 1 else 0 end) +
-	sum (case when hce_1 in ('Missing') then 1 else 0 end) +
-	sum (case when hce_2 in ('Missing') then 1 else 0 end) +
-	sum (case when hce_3 in ('Missing') then 1 else 0 end) +
-	sum (case when hce_4 in ('Missing') then 1 else 0 end) +
-	sum (case when hce_5 in ('Missing') then 1 else 0 end) +
-	sum (case when hce_6 in ('Missing') then 1 else 0 end) 
+	sum (case when hce in (' ') then 1 else 0 end)
 		as sum_hce_miss "MDRO in Quarter, HCE: Missing"
 
 from analysis
 	group by testreportqtr 
 ;
+
 
 create table hlth_equity_hosp as
 select
@@ -245,10 +170,7 @@ select
 	(calculated mdro_rural / &ruraltotalpop) * 100000 as mdro_rural_IR "Rural" format 10.2,
 	(calculated mdro_NONrural / &nonruralpop) * 100000 as mdro_NONrural_IR "Non-rural" format 10.2
 
-
-
-
-from work.analysis
+from analysis
 
 where EVENT_DATE < "&qtr_dte."d 
 	group by testreportmonth 
@@ -276,31 +198,17 @@ select
 	(calculated mdro_svi_HI / &svihighpop) *100000 as mdro_sviHI_IR "IR/100k SVI 0.80 or greater in quarter",
 	(calculated mdro_svi_LO / &svilowpop) * 100000 as mdro_sviLO_IR "IR/100K SVI less than 0.80 in quarter"
 
-from work.analysis
-
-where EVENT_DATE < "&qtr_dte."d
-	group by testreportqtr
-;
-
-create table hlth_equity_screen as
-select
-
-		intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
-
-	/*IR per 100k population*/
-	sum (case when screening_event in ('Yes') then 1 else 0 end) as screenevnt_y "MDRO ID'd in screening",
-	sum (case when screening_event in ('No') then 1 else 0 end) as screenevnt_n "MDRO ID'd in clinical care",
-	sum (case when screening_event in ('Mising/Unknown') then 1 else 0 end) as screenevnt_miss "MDRO ID manner unknown/missing"
-
-from work.analysis
+from analysis
 
 where EVENT_DATE < "&qtr_dte."d
 	group by testreportqtr
 ;
 quit;
 
+
+
 data equity_combine;
-merge hlth_equity_density_qt hlth_equity_hosp hlth_equity_HCE hlth_equity_trav hlth_equity_screen
+merge hlth_equity_density_qt hlth_equity_hosp hlth_equity_HCE hlth_equity_trav 
 ;
 	by testreportqtr;
 	where testreportqtr <= "&qtr_dte."d; *<----- set date parameters here, it can mess up cumulative counts if you do it later on;
@@ -340,11 +248,6 @@ set equity_combine;
 	cum_sum_travel_u+sum_travel_u;
 	cum_sum_travel_m+sum_travel_m;
 
-	cum_sum_screenevnt_y+screenevnt_y;
-	cum_sum_screenevnt_n+screenevnt_n;
-	cum_sum_screenevnt_miss+screenevnt_miss;
-
-
 		
 		label cum_mdro_rural="Cumulative MDRO in quarter: Rural";
 		label cum_mdro_NONrural="Cumulative MDRO in quarter: Non-rural";
@@ -372,47 +275,37 @@ set equity_combine;
 		label cum_sum_travel_u="Cumulative MDRO in quarter: Unknown history of travel";
 		label cum_sum_travel_m="Cumulative MDRO in quarter: Missing history of travel";
 
-		label cum_sum_screenevnt_y="Cumulative MDRO ID'd in screening";
-		label cum_sum_screenevnt_n="Cumulative MDRO ID'd in clinical care";
-		label cum_sum_screenevnt_miss="Cumulative MDRO ID manner missing/unknown";
-
-
-
-
 
 run;
+
+
 /*Now create percentages of cumulative counts as we move through each quarter of our timeframe*/
 proc sql;
 create table qtr_percent_equity as
 select
 *,
-	testreportqtr,
 
 
-
-cum_mdro_rural/(cum_mdro_NONrural+ cum_mdro_rural )as pct_mdro_rural "Cumulative Percent MDRO in Quarter: Rural"format percent10.1,
-cum_mdro_NONrural/(cum_mdro_NONrural + cum_mdro_rural )as pct_mdro_NONrural "Cumulative Percent MDRO in Quarter: Non rural"format percent10.1,
+cum_mdro_rural/(cum_mdro_NONrural+ cum_mdro_rural )as pct_mdro_rural "Cumulative Percent MDRO in Quarter: Rural" format percent10.1,
+cum_mdro_NONrural/(cum_mdro_NONrural + cum_mdro_rural )as pct_mdro_NONrural "Cumulative Percent MDRO in Quarter: Non rural" format percent10.1,
 
 	cum_mdro_svi_HI / (cum_mdro_svi_HI + cum_mdro_svi_LO) as pct_mdro_sviHI "Cumulative Percent MDRO in Quarter: HIGH SVI" format percent10.1,
 	cum_mdro_svi_LO / (cum_mdro_svi_HI + cum_mdro_svi_LO) as pct_mdro_sviLO "Cumulative Percent MDRO in Quarter: LOW SVI" format percent10.1,
 
-cum_sum_hosp_y/(cum_sum_hosp_y +cum_sum_hosp_n+cum_sum_hosp_unkmiss)as pct_sum_hosp_y "Cumulative Percent MDRO in Quarter: Hospitalized"format percent10.1,
-cum_sum_hosp_n/(cum_sum_hosp_y +cum_sum_hosp_n+cum_sum_hosp_unkmiss)as pct_sum_hosp_n "Cumulative Percent MDRO in Quarter: Not hospitalized"format percent10.1,
-cum_sum_hosp_unkmiss/(cum_sum_hosp_y +cum_sum_hosp_n+cum_sum_hosp_unkmiss)as pct_sum_hosp_unkmiss "Cumulative Percent MDRO in Quarter: Unknown hospitalization status"format percent10.1,
-cum_sum_hce_acute/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_acute "Cumulative Percent MDRO in Quarter: HCE Acute Care"format percent10.1,
-cum_sum_hce_ltc/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_ltc "Cumulative Percent MDRO in Quarter: HCE Longterm Care"format percent10.1,
-cum_sum_hce_no/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_no "Cumulative Percent MDRO in Quarter: HCE None"format percent10.1,
-cum_sum_hce_ltach/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_ltach "Cumulative Percent MDRO in Quarter: HCE Longterm Acute Care"format percent10.1,
-cum_sum_hce_surg/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_cum_sum_hce_surg "Cumulative Percent MDRO in Quarter: HCE Surgery/Invasive Procedure"format percent10.1,
-cum_sum_hce_unk/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_cum_sum_hce_unk "Cumulative Percent MDRO in Quarter: HCE Unknown"format percent10.1,
-cum_sum_hce_miss/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_cum_sum_hce_miss "Cumulative Percent MDRO in Quarter: HCE Missing"format percent10.1,
-cum_sum_travel_y/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_y "Cumulative Percent MDRO in Quarter: History of travel"format percent10.1,
-cum_sum_travel_n/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_n "Cumulative Percent MDRO in Quarter: No history of travel"format percent10.1,
-cum_sum_travel_u/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_u "Cumulative Percent MDRO in Quarter: Unknown history of travel"format percent10.1,
-cum_sum_travel_m/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_m "Cumulative Percent MDRO in Quarter: Missing history of travel"format percent10.1,
-cum_sum_screenevnt_y/(cum_sum_screenevnt_y+cum_sum_screenevnt_n+cum_sum_screenevnt_miss)as pct_sum_screen_y "Cumulative Percent MDRO in Quarter: ID'd in screening" format percent10.1,
-cum_sum_screenevnt_n/(cum_sum_screenevnt_y+cum_sum_screenevnt_n+cum_sum_screenevnt_miss)as pct_sum_screen_n "Cumulative Percent MDRO in Quarter: ID'd in clinical care" format percent10.1,
-cum_sum_screenevnt_miss/(cum_sum_screenevnt_y+cum_sum_screenevnt_n+cum_sum_screenevnt_miss)as pct_sum_screen_miss "Cumulative Percent MDRO in Quarter: manner of ID unknown/missing" format percent10.1
+cum_sum_hosp_y/(cum_sum_hosp_y +cum_sum_hosp_n+cum_sum_hosp_unkmiss)as pct_sum_hosp_y "Cumulative Percent MDRO in Quarter: Hospitalized" format percent10.1,
+cum_sum_hosp_n/(cum_sum_hosp_y +cum_sum_hosp_n+cum_sum_hosp_unkmiss)as pct_sum_hosp_n "Cumulative Percent MDRO in Quarter: Not hospitalized" format percent10.1,
+cum_sum_hosp_unkmiss/(cum_sum_hosp_y +cum_sum_hosp_n+cum_sum_hosp_unkmiss)as pct_sum_hosp_unkmiss "Cumulative Percent MDRO in Quarter: Unknown hospitalization status" format percent10.1,
+cum_sum_hce_acute/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_acute "Cumulative Percent MDRO in Quarter: HCE Acute Care" format percent10.1,
+cum_sum_hce_ltc/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_ltc "Cumulative Percent MDRO in Quarter: HCE Longterm Care" format percent10.1,
+cum_sum_hce_no/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_no "Cumulative Percent MDRO in Quarter: HCE None" format percent10.1,
+cum_sum_hce_ltach/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_hce_ltach "Cumulative Percent MDRO in Quarter: HCE Longterm Acute Care" format percent10.1,
+cum_sum_hce_surg/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_cum_sum_hce_surg "Cumulative Percent MDRO in Quarter: HCE Surgery/Invasive Procedure" format percent10.1,
+cum_sum_hce_unk/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_cum_sum_hce_unk "Cumulative Percent MDRO in Quarter: HCE Unknown" format percent10.1,
+cum_sum_hce_miss/(cum_sum_hce_acute+cum_sum_hce_ltc+cum_sum_hce_no+cum_sum_hce_ltach+cum_sum_hce_surg+cum_sum_hce_unk+cum_sum_hce_miss)as pct_sum_cum_sum_hce_miss "Cumulative Percent MDRO in Quarter: HCE Missing" format percent10.1,
+cum_sum_travel_y/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_y "Cumulative Percent MDRO in Quarter: History of travel" format percent10.1,
+cum_sum_travel_n/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_n "Cumulative Percent MDRO in Quarter: No history of travel" format percent10.1,
+cum_sum_travel_u/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_u "Cumulative Percent MDRO in Quarter: Unknown history of travel" format percent10.1,
+cum_sum_travel_m/(cum_sum_travel_y+cum_sum_travel_n+cum_sum_travel_u+cum_sum_travel_m)as pct_sum_cum_sum_travel_m "Cumulative Percent MDRO in Quarter: Missing history of travel" format percent10.1
 
 
 
@@ -421,13 +314,13 @@ from equity_combine_cum
 quit;
 
 
-
-/*Now tables for race, eth, gender, and age*/
-
+/*Now tables for race and mechanism*/
 
 data records;
 set SASdata.recordssas;
+	if type not in ("&disease") then delete;
 
+		where  EVENT_DATE >= "01jan2024"d and  EVENT_DATE <= "&qtr_dte"d;
 run;
 
 
@@ -435,7 +328,7 @@ proc sql;
 create table disease_sum as
 select *,
 
-
+/*add date variables into parent dataset*/
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 	intnx("qtr", (symptom_onset_date), 0, "end") as testreportqtr_symptom "Quarter Ending Date for symptom onset" format=date11.,
 	intnx("month", (EVENT_DATE), 0, "end") as testreportmonth "Month Ending Date" format=date11.,
@@ -446,9 +339,7 @@ select *,
 from records
 
 ;
-
-
-
+/*create sum of all case counts by county*/
 create table county_sum as
 select
 	
@@ -470,20 +361,23 @@ select
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 	
 	sum (case when type in ('CRE') then 1 else 0 end) as CP_CRE "CP-CRE in Quarter",
-	sum (case when type in ('CAURIS') then 1 else 0 end) as c_auris "C. auris in Quarter"
+	sum (case when type in ('CAURIS') then 1 else 0 end) as c_auris "C. auris in Quarter",
+
+	/*MDRO tot*/
+	SUM (CASE WHEN TYPE IN ('CRE','CAURIS') then 1 else 0 end) as mdro_count "MDRO in Quarter"
 
 
 from records
 group by testreportqtr
 ;
 
-
 create table disease_counts_class as /*we'll use this for coding yearly counts and cumulative counts*/
 select
 
 	testreportqtr "Quarter Ending Date" format=date11.,
 	CP_CRE,
-	c_auris
+	c_auris,
+	mdro_count
 
 
 from disease_counts_qtr
@@ -491,7 +385,6 @@ group by CP_CRE, c_auris
 		order by testreportqtr
 ;
 quit;
-
 
 /*Cumulative counts for hard coding percentages (or manually creating percentages in outputs)*/
 data disease_counts_qtr_cum;
@@ -503,6 +396,9 @@ set disease_counts_qtr;
 	cum_CAURIS + c_auris;
 	label cum_CAURIS = 'Cumulative C. auris by Quarter';
 
+	cum_mdro_count + mdro_count;
+	label cum_mdro_count = 'Cumulative MDRO by Quarter';
+
 
 run;
 /*Race*/
@@ -512,49 +408,30 @@ select
 
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
-/*CRE by race*/
-	sum (case when type in ('CRE') and RACE1 in ('White') then 1 else 0 end) as CRE_w "CRE in Quarter, Race: White",
-	/*calculated CRE_w / 183 as pct_CRE_w "Percent of cumulative total CRE, Race: White" format percent10.2,*/
-
-	sum (case when type in ('CRE') and RACE1 in ('Black or African American') then 1 else 0 end) as CRE_b "CRE in Quarter, Race: Black or African American",
-	sum (case when type in ('CRE') and RACE1 in ('Asian') then 1 else 0 end) as CRE_a "CRE in Quarter, Race: Asian",
-	sum (case when type in ('CRE') and RACE1 in ('Native Hawaiian or Pacific Islander') then 1 else 0 end) as CRE_nhpi "CRE in Quarter, Race: Native Hawaiian or Pacific Islander",
-	sum (case when type in ('CRE') and RACE1 in ('Other') then 1 else 0 end) as CRE_oth "CRE in Quarter, Race: Other",
-	sum (case when type in ('CRE') and RACE1 in ('Unknown') then 1 else 0 end) as CRE_unk "CRE in Quarter, Race: Unknown",
-	sum (case when type in ('CRE') and RACE1 in ('American Indian Alaskan Native') then 1 else 0 end) as CRE_aian "CRE in Quarter, Race: American Indian Alaskan Native",
-	sum (case when type in ('CRE') and RACE1 in (' ') then 1 else 0 end) as CRE_miss "CRE in Quarter, Race: Missing",
-
-/*C. auris by race*/
-	sum (case when type in ('CAURIS') and RACE1 in ('White') then 1 else 0 end) as c_auris_w "C. auris in Quarter, Race: White",
-	sum (case when type in ('CAURIS') and RACE1 in ('Black or African American') then 1 else 0 end) as c_auris_b "C. auris in Quarter, Race: Black or African American",
-	sum (case when type in ('CAURIS') and RACE1 in ('Asian') then 1 else 0 end) as c_auris_a "C. auris in Quarter, Race: Asian",
-	sum (case when type in ('CAURIS') and RACE1 in ('Native Hawaiian or Pacific Islander') then 1 else 0 end) as c_auris_nhpi "C. auris in Quarter, Race: Native Hawaiian or Pacific Islander",
-	sum (case when type in ('CAURIS') and RACE1 in ('Other') then 1 else 0 end) as c_auris_oth "C. auris in Quarter, Race: Other",
-	sum (case when type in ('CAURIS') and RACE1 in ('Unknown') then 1 else 0 end) as c_auris_unk "C. auris in Quarter, Race: Unknown",
-	sum (case when type in ('CAURIS') and RACE1 in ('American Indian Alaskan Native') then 1 else 0 end) as c_auris_aian "C. auris in Quarter, Race: American Indian Alaskan Native",
-	sum (case when type in ('CAURIS') and RACE1 in (' ') then 1 else 0 end) as c_auris_miss "C. auris in Quarter, Race: Missing"
+/*MDRO by race*/
+	sum (case when RACE1 in ('White') then 1 else 0 end) as MDRO_w "MDRO in Quarter, Race: White",	
+	sum (case when RACE1 in ('Black or African American') then 1 else 0 end) as MDRO_b "MDRO in Quarter, Race: Black or African American",
+	sum (case when RACE1 in ('Asian') then 1 else 0 end) as MDRO_a "MDRO in Quarter, Race: Asian",
+	sum (case when RACE1 in ('Native Hawaiian or Pacific Islander') then 1 else 0 end) as MDRO_nhpi "MDRO in Quarter, Race: Native Hawaiian or Pacific Islander",
+	sum (case when RACE1 in ('Other') then 1 else 0 end) as MDRO_oth "MDRO in Quarter, Race: Other",
+	sum (case when RACE1 in ('Unknown') then 1 else 0 end) as MDRO_unk "MDRO in Quarter, Race: Unknown",
+	sum (case when RACE1 in ('American Indian Alaskan Native') then 1 else 0 end) as MDRO_aian "MDRO in Quarter, Race: American Indian Alaskan Native",
+	sum (case when RACE1 in (' ') then 1 else 0 end) as MDRO_miss "MDRO in Quarter, Race: Missing"
 
 from records
 group by testreportqtr
 ;
-
 /*Ethnicity*/
 create table disease_counts_qtr_eth as
 select
 
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
-	/*CRE by Ethnicity*/
-	sum (case when type in ('CRE') and Hispanic in ('Yes') then 1 else 0 end) as CP_CRE_hisp "CRE in Quarter: Hispanic",
-	sum (case when type in ('CRE') and Hispanic in ('No') then 1 else 0 end) as CP_CRE_nohisp "CRE in Quarter: Not Hispanic",
-	sum (case when type in ('CRE') and Hispanic in ('Unknown') then 1 else 0 end) as CP_CRE_unkhisp "CRE in Quarter: Unknown Hispanic",
-	sum (case when type in ('CRE') and Hispanic in (' ') then 1 else 0 end) as CP_CRE_misshisp "CRE in Quarter: Missing Hispanic",
-
-	/*C. auris by Ethnicity*/
-	sum (case when type in ('CAURIS') and Hispanic in ('Yes') then 1 else 0 end) as c_auris_hisp "C. auris in Quarter: Hispanic",
-	sum (case when type in ('CAURIS') and Hispanic in ('No') then 1 else 0 end) as c_auris_nohisp "C. auris in Quarter: Not Hispanic",
-	sum (case when type in ('CAURIS') and Hispanic in ('Unknown') then 1 else 0 end) as c_auris_unkhisp "C. auris in Quarter: Unknown Hispanic",
-	sum (case when type in ('CAURIS') and Hispanic in (' ') then 1 else 0 end) as c_auris_mishisp "C. auris in Quarter: Missing Hispanic"
+	/*MDRO by Ethnicity*/
+	sum (case when Hispanic in ('Yes') then 1 else 0 end) as MDRO_hisp "MDRO in Quarter: Hispanic",
+	sum (case when Hispanic in ('No') then 1 else 0 end) as MDRO_nohisp "MDRO in Quarter: Not Hispanic",
+	sum (case when Hispanic in ('Unknown') then 1 else 0 end) as MDRO_unkhisp "MDRO in Quarter: Unknown Hispanic",
+	sum (case when Hispanic in (' ') then 1 else 0 end) as MDRO_misshisp "MDRO in Quarter: Missing Hispanic"
 
 from records
 group by testreportqtr 
@@ -566,14 +443,9 @@ select
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
 	/*CRE by Gender*/
-	sum (case when type in ('CRE') and Gender in ('Male') then 1 else 0 end) as CP_CRE_male "CRE in Quarter: Male",
-	sum (case when type in ('CRE') and Gender in ('Female') then 1 else 0 end) as CP_CRE_female "CRE in Quarter: Female",
-	sum (case when type in ('CRE') and Gender in (' ') then 1 else 0 end) as CP_CRE_sexmiss "CRE in Quarter: Missing",
-
-	/*C. auris by Gender*/
-	sum (case when type in ('CAURIS') and Gender in ('Male') then 1 else 0 end) as c_auris_male "C. auris in Quarter: Male",
-	sum (case when type in ('CAURIS') and Gender in ('Female') then 1 else 0 end) as c_auris_female "C. auris in Quarter: Female",
-	sum (case when type in ('CAURIS') and Gender in (' ') then 1 else 0 end) as c_auris_sexmiss "C. auris in Quarter: Missing Gender"
+	sum (case when Gender in ('Male') then 1 else 0 end) as MDRO_male "MDRO in Quarter: Male",
+	sum (case when Gender in ('Female') then 1 else 0 end) as MDRO_female "MDRO in Quarter: Female",
+	sum (case when Gender in (' ') then 1 else 0 end) as MDRO_sexmiss "MDRO in Quarter: Missing"
 
 from records
 group by testreportqtr 
@@ -585,193 +457,126 @@ select
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
 
-	/*CRE by Age Group*/
-	sum(case when type in ('CRE') and 0 LE age LT 5 then 1 else 0 end) as CRE_04 label='CRE in Quarter: Age 0-4',
-	sum(case when type in ('CRE') and 5 LE age LT 18 then 1 else 0 end) as CRE_0517 label='CRE in Quarter: Age 5-17',
-	sum(case when type in ('CRE') and 18 LE age LT 25 then 1 else 0 end) as CRE_1824 label='CRE in Quarter: Age 18-24',
-	sum(case when type in ('CRE') and 25 LE age LT 50 then 1 else 0 end) as CRE_2549 label='CRE in Quarter: Age 25-49',
-	sum(case when type in ('CRE') and 50 LE age LT 65 then 1 else 0 end) as CRE_5064 label='CRE in Quarter: Age 50-64',
-	sum(case when type in ('CRE') and age GE 65 then 1 else 0 end) as CRE_65 label='CRE in Quarter: Age 65+',
+	/*MDRO by Age Group*/
+	sum(case when 0 LE age LT 5 then 1 else 0 end) as MDRO_04 label='MDRO in Quarter: Age 0-4',
+	sum(case when 5 LE age LT 18 then 1 else 0 end) as MDRO_0517 label='MDRO in Quarter: Age 5-17',
+	sum(case when 18 LE age LT 25 then 1 else 0 end) as MDRO_1824 label='MDRO in Quarter: Age 18-24',
+	sum(case when 25 LE age LT 50 then 1 else 0 end) as MDRO_2549 label='MDRO in Quarter: Age 25-49',
+	sum(case when 50 LE age LT 65 then 1 else 0 end) as MDRO_5064 label='MDRO in Quarter: Age 50-64',
+	sum(case when age GE 65 then 1 else 0 end) as MDRO_65 label='MDRO in Quarter: Age 65+'
 
-	/*C. auris by Age Group*/
-	sum(case when type in ('CAURIS') and 0 LE age LT 5 then 1 else 0 end) as CAURIS_04 label='C. auris in Quarter: Age 0-4',
-	sum(case when type in ('CAURIS') and 5 LE age LT 18 then 1 else 0 end) as CAURIS_0517 label='C. auris in Quarter: Age 5-17',
-	sum(case when type in ('CAURIS') and 18 LE age LT 25 then 1 else 0 end) as CAURIS_1824 label='C. auris in Quarter: Age 18-24',
-	sum(case when type in ('CAURIS') and 25 LE age LT 50 then 1 else 0 end) as CAURIS_2549 label='C. auris in Quarter: Age 25-49',
-	sum(case when type in ('CAURIS') and 50 LE age LT 65 then 1 else 0 end) as CAURIS_5064 label='C. auris in Quarter: Age 50-64',
-	sum(case when type in ('CAURIS') and age GE 65 then 1 else 0 end) as CAURIS_65 label='C. auris in Quarter: Age 65+'
+
 from records
 
 group by testreportqtr 
 ;
 
+/*Mechanism (CRE only)*/
+create table disease_counts_cre_mech as
+select
 
+	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
+	sum (case when mechanism in ('KPC') then 1 else 0 end) as mech_KPC "Mechanism: KPC",
+	sum (case when mechanism in ('NDM') then 1 else 0 end) as mech_NDM "Mechanism: NDM",
+	sum (case when mechanism in ('OXA-48') then 1 else 0 end) as mech_OXA48 "Mechanism: OXA-48",
+	sum (case when mechanism in ('Other') then 1 else 0 end) as mech_Oth "Mechanism: Other",
+	sum (case when mechanism in ('IMP') then 1 else 0 end) as mech_IMP "Mechanism: IMP",
+	sum (case when mechanism in ('VIM') then 1 else 0 end) as mech_VIM "Mechanism: VIM",
+	sum (case when mechanism in ('Missing') then 1 else 0 end) as mech_miss "Mechanism: Missing"
+
+from records
+group by testreportqtr
+;
 
 quit;
 
 /*Merge all datasets and confine to dates we want to look at by qtr*/
 
-data test_combine;
-merge disease_counts_qtr_cum disease_counts_qtr_race disease_counts_qtr_eth disease_counts_qtr_gender disease_counts_qtr_age;
+data mech_race_combine;
+merge disease_counts_qtr_cum disease_counts_qtr_race disease_counts_qtr_eth disease_counts_qtr_gender disease_counts_qtr_age disease_counts_cre_mech;
 	by testreportqtr;
 	where testreportqtr <= "&qtr_dte."d; *<----- set date parameters here, it can mess up cumulative counts if you do it later on;
 run;
 
-
 /*make all of our cumulative values*/
 data combine_cum_demo;
-set test_combine;
+set mech_race_combine;
 
-	cum_CRE_w+CRE_w;
-	cum_CRE_b+CRE_b;
-	cum_CRE_a+CRE_a;
-	cum_CRE_nhpi+CRE_nhpi;
-	cum_CRE_oth+CRE_oth;
-	cum_CRE_unk+CRE_unk;
-	cum_CRE_aian+CRE_aian;
-	cum_CRE_miss+CRE_miss;
-	cum_c_auris_w+c_auris_w;
-	cum_c_auris_b+c_auris_b;
-	cum_c_auris_a+c_auris_a;
-	cum_c_auris_nhpi+c_auris_nhpi;
-	cum_c_auris_oth+c_auris_oth;
-	cum_c_auris_unk+c_auris_unk;
-	cum_c_auris_aian+c_auris_aian;
-	cum_c_auris_miss+c_auris_miss;
-	cum_CP_CRE_hisp+CP_CRE_hisp;
-	cum_CP_CRE_nohisp+CP_CRE_nohisp;
-	cum_CP_CRE_unkhisp+CP_CRE_unkhisp;
-	cum_CP_CRE_misshisp+CP_CRE_misshisp;
-	cum_c_auris_hisp+c_auris_hisp;
-	cum_c_auris_nohisp+c_auris_nohisp;
-	cum_c_auris_unkhisp+c_auris_unkhisp;
-	cum_c_auris_mishisp+c_auris_mishisp;
-	cum_CP_CRE_male+CP_CRE_male;
-	cum_CP_CRE_female+CP_CRE_female;
-	cum_CP_CRE_sexmiss+CP_CRE_sexmiss;
-	cum_c_auris_male+c_auris_male;
-	cum_c_auris_female+c_auris_female;
-	cum_c_auris_sexmiss+c_auris_sexmiss;
-	cum_CRE_04+CRE_04;
-	cum_CRE_0517+CRE_0517;
-	cum_CRE_1824+CRE_1824;
-	cum_CRE_2549+CRE_2549;
-	cum_CRE_5064+CRE_5064;
-	cum_CRE_65+CRE_65;
-	cum_CAURIS_04+CAURIS_04;
-	cum_CAURIS_0517+CAURIS_0517;
-	cum_CAURIS_1824+CAURIS_1824;
-	cum_CAURIS_2549+CAURIS_2549;
-	cum_CAURIS_5064+CAURIS_5064;
-	cum_CAURIS_65+CAURIS_65;
+	cum_CRE+CP_CRE;
+	cum_c_auris+c_auris;
+	/*cum_GAS+GAS*/
 
-		label cum_CRE_w="Cumulative CRE in Quarter, Race: White";
-		label cum_CRE_b="Cumulative CRE in Quarter, Race: Black or African American";
-		label cum_CRE_a="Cumulative CRE in Quarter, Race: Asian";
-		label cum_CRE_nhpi="Cumulative CRE in Quarter, Race: Native Hawaiian or Pacific Islander";
-		label cum_CRE_oth="Cumulative CRE in Quarter, Race: Other";
-		label cum_CRE_unk="Cumulative CRE in Quarter, Race: Unknown";
-		label cum_CRE_aian="Cumulative CRE in Quarter, Race: American Indian Alaskan Native";
-		label cum_CRE_miss="Cumulative CRE in Quarter, Race: Missing";
-		label cum_c_auris_w="Cumulative C. auris in Quarter, Race: White";
-		label cum_c_auris_b="Cumulative C. auris in Quarter, Race: Black or African American";
-		label cum_c_auris_a="Cumulative C. auris in Quarter, Race: Asian";
-		label cum_c_auris_nhpi="Cumulative C. auris in Quarter, Race: Native Hawaiian or Pacific Islander";
-		label cum_c_auris_oth="Cumulative C. auris in Quarter, Race: Other";
-		label cum_c_auris_unk="Cumulative C. auris in Quarter, Race: Unknown";
-		label cum_c_auris_aian="Cumulative C. auris in Quarter, Race: American Indian Alaskan Native";
-		label cum_c_auris_miss="Cumulative C. auris in Quarter, Race: Missing";
-		label cum_CP_CRE_hisp="Cumulative CRE in Quarter: Hispanic";
-		label cum_CP_CRE_nohisp="Cumulative CRE in Quarter: Not Hispanic";
-		label cum_CP_CRE_unkhisp="Cumulative CRE in Quarter: Unknown Hispanic";
-		label cum_CP_CRE_misshisp="Cumulative CRE in Quarter: Missing Hispanic";
-		label cum_c_auris_hisp="Cumulative C. auris in Quarter: Hispanic";
-		label cum_c_auris_nohisp="Cumulative C. auris in Quarter: Not Hispanic";
-		label cum_c_auris_unkhisp="Cumulative C. auris in Quarter: Unknown Hispanic";
-		label cum_c_auris_mishisp="Cumulative C. auris in Quarter: Missing Hispanic";
-		label cum_CP_CRE_male="Cumulative CRE in Quarter: Male";
-		label cum_CP_CRE_female="Cumulative CRE in Quarter: Female";
-		label cum_CP_CRE_sexmiss="Cumulative CRE in Quarter: Missing";
-		label cum_c_auris_male="Cumulative C. auris in Quarter: Male";
-		label cum_c_auris_female="Cumulative C. auris in Quarter: Female";
-		label cum_c_auris_sexmiss="Cumulative C. auris in Quarter: Missing Gender";
-		label cum_CRE_04="Cumulative CRE in Quarter: Age 0-4";
-		label cum_CRE_0517="Cumulative CRE in Quarter: Age 5-17";
-		label cum_CRE_1824="Cumulative CRE in Quarter: Age 18-24";
-		label cum_CRE_2549="Cumulative CRE in Quarter: Age 25-49";
-		label cum_CRE_5064="Cumulative CRE in Quarter: Age 50-64";
-		label cum_CRE_65="Cumulative CRE in Quarter: Age 65+";
-		label cum_CAURIS_04="Cumulative C. auris in Quarter: Age 0-4";
-		label cum_CAURIS_0517="Cumulative C. auris in Quarter: Age 5-17";
-		label cum_CAURIS_1824="Cumulative C. auris in Quarter: Age 18-24";
-		label cum_CAURIS_2549="Cumulative C. auris in Quarter: Age 25-49";
-		label cum_CAURIS_5064="Cumulative C. auris in Quarter: Age 50-64";
-		label cum_CAURIS_65="Cumulative C. auris in Quarter: Age 65+";
+	cum_MDRO_w+MDRO_w;
+	cum_MDRO_b+MDRO_b;
+	cum_MDRO_a+MDRO_a;
+	cum_MDRO_nhpi+MDRO_nhpi;
+	cum_MDRO_oth+MDRO_oth;
+	cum_MDRO_unk+MDRO_unk;
+	cum_MDRO_aian+MDRO_aian;
+	cum_MDRO_miss+MDRO_miss;
 
+	cum_MDRO_hisp+MDRO_hisp;
+	cum_MDRO_nohisp+MDRO_nohisp;
+	cum_MDRO_unkhisp+MDRO_unkhisp;
+	cum_MDRO_misshisp+MDRO_misshisp;
+	
+	cum_MDRO_male+MDRO_male;
+	cum_MDRO_female+MDRO_female;
+	cum_MDRO_sexmiss+MDRO_sexmiss;
+	
+	cum_MDRO_04+MDRO_04;
+	cum_MDRO_0517+MDRO_0517;
+	cum_MDRO_1824+MDRO_1824;
+	cum_MDRO_2549+MDRO_2549;
+	cum_MDRO_5064+MDRO_5064;
+	cum_MDRO_65+MDRO_65;
 
+	cum_mech_KPC + mech_KPC;
+	cum_mech_NDM + mech_NDM;
+	cum_mech_OXA48 + mech_OXA48;
+	cum_mech_Oth + mech_Oth;
+	cum_mech_IMP + mech_IMP;
+	cum_mech_VIM + mech_VIM;
+	cum_mech_miss + mech_miss;
 
+	
+		label cum_CRE= "Cumulative CRE";
+		label cum_c_auris= "Cumulative C.auris";
+		
+		label cum_MDRO_w= "Cumulative MDRO in Quarter, Race: White";
+		label cum_MDRO_b= "Cumulative MDRO in Quarter, Race: Black or African American";
+		label cum_MDRO_a= "Cumulative MDRO in Quarter, Race: Asian";
+		label cum_MDRO_nhpi= "Cumulative MDRO in Quarter, Race: Native Hawaiian or Pacific Islander";
+		label cum_MDRO_oth= "Cumulative MDRO in Quarter, Race: Other";
+		label cum_MDRO_unk= "Cumulative MDRO in Quarter, Race: Unknown";
+		label cum_MDRO_aian= "Cumulative MDRO in Quarter, Race: American Indian Alaskan Native";
+		label cum_MDRO_miss= "Cumulative MDRO in Quarter, Race: Missing";
+
+		label cum_MDRO_hisp= "Cumulative MDRO in Quarter: Hispanic";
+		label cum_MDRO_nohisp= "Cumulative MDRO in Quarter: Not Hispanic";
+		label cum_MDRO_unkhisp= "Cumulative MDRO in Quarter: Unknown Hispanic";
+		label cum_MDRO_misshisp= "Cumulative MDRO in Quarter: Missing Hispanic";
+		
+		label cum_MDRO_male= "Cumulative MDRO in Quarter: Male";
+		label cum_MDRO_female= "Cumulative MDRO in Quarter: Female";
+		label cum_MDRO_sexmiss= "Cumulative MDRO in Quarter: Missing";
+
+		label cum_MDRO_04= "Cumulative MDRO in Quarter: Age 0-4";
+		label cum_MDRO_0517= "Cumulative MDRO in Quarter: Age 5-17";
+		label cum_MDRO_1824= "Cumulative MDRO in Quarter: Age 18-24";
+		label cum_MDRO_2549= "Cumulative MDRO in Quarter: Age 25-49";
+		label cum_MDRO_5064= "Cumulative MDRO in Quarter: Age 50-64";
+		label cum_MDRO_65= "Cumulative MDRO in Quarter: Age 65+";
+
+		label cum_mech_KPC= "Cumulative Mechanism: KPC";
+		label cum_mech_NDM= "Cumulative Mechanism: NDM";
+		label cum_mech_OXA48= "Cumulative Mechanism: OXA-48";
+		label cum_mech_Oth= "Cumulative Mechanism: Other";
+		label cum_mech_IMP= "Cumulative Mechanism: IMP";
+		label cum_mech_VIM= "Cumulative Mechanism: VIM";
+		label cum_mech_miss= "Cumulative Mechanism: Missing";
+		
 run;
-
-
-/*Now create percentages of cumulative counts as we move through each quarter of our timeframe*/
-proc sql;
-create table combine_qtr_percent as
-select
-
-	testreportqtr,
-	cum_CRE_w / cum_CP_CRE as pct_cum_CRE_w "Cumulative Percent CRE in Quarter, Race: White" format percent10.1 ,
-	cum_CRE_b / cum_CP_CRE as pct_cum_CRE_b "Cumulative Percent CRE in Quarter, Race: Black or African American" format percent10.1 ,
-	cum_CRE_a / cum_CP_CRE as pct_cum_CRE_a "Cumulative Percent CRE in Quarter, Race: Asian" format percent10.1 ,
-	cum_CRE_nhpi / cum_CP_CRE as pct_cum_CRE_nhpi "Cumulative Percent CRE in Quarter, Race: Native Hawaiian or Pacific Islander" format percent10.1 ,
-	cum_CRE_oth / cum_CP_CRE as pct_cum_CRE_oth "Cumulative Percent CRE in Quarter, Race: Other" format percent10.1 ,
-	cum_CRE_unk / cum_CP_CRE as pct_cum_CRE_unk "Cumulative Percent CRE in Quarter, Race: Unknown" format percent10.1 ,
-	cum_CRE_aian / cum_CP_CRE as pct_cum_CRE_aian "Cumulative Percent CRE in Quarter, Race: American Indian Alaskan Native" format percent10.1 ,
-	cum_CRE_miss / cum_CP_CRE as pct_cum_CRE_miss "Cumulative Percent CRE in Quarter, Race: Missing" format percent10.1 ,
-	cum_c_auris_w / cum_CAURIS as pct_cum_c_auris_w "Cumulative Percent C. auris in Quarter, Race: White" format percent10.1 ,
-	cum_c_auris_b / cum_CAURIS as pct_cum_c_auris_b "Cumulative Percent C. auris in Quarter, Race: Black or African American" format percent10.1 ,
-	cum_c_auris_a / cum_CAURIS as pct_cum_c_auris_a "Cumulative Percent C. auris in Quarter, Race: Asian" format percent10.1 ,
-	cum_c_auris_nhpi / cum_CAURIS as pct_cum_c_auris_nhpi "Cumulative Percent C. auris in Quarter, Race: Native Hawaiian or Pacific Islander" format percent10.1 ,
-	cum_c_auris_oth / cum_CAURIS as pct_cum_c_auris_oth "Cumulative Percent C. auris in Quarter, Race: Other" format percent10.1 ,
-	cum_c_auris_unk / cum_CAURIS as pct_cum_c_auris_unk "Cumulative Percent C. auris in Quarter, Race: Unknown" format percent10.1 ,
-	cum_c_auris_aian / cum_CAURIS as pct_cum_c_auris_aian "Cumulative Percent C. auris in Quarter, Race: American Indian Alaskan Native" format percent10.1 ,
-	cum_c_auris_miss / cum_CAURIS as pct_cum_c_auris_miss "Cumulative Percent C. auris in Quarter, Race: Missing" format percent10.1 ,
-	cum_CP_CRE_hisp / cum_CP_CRE as pct_cum_CP_CRE_hisp "Cumulative Percent CRE in Quarter: Hispanic" format percent10.1 ,
-	cum_CP_CRE_nohisp / cum_CP_CRE as pct_cum_CP_CRE_nohisp "Cumulative Percent CRE in Quarter: Not Hispanic" format percent10.1 ,
-	cum_CP_CRE_unkhisp / cum_CP_CRE as pct_cum_CP_CRE_unkhisp "Cumulative Percent CRE in Quarter: Unknown Hispanic" format percent10.1 ,
-	cum_CP_CRE_misshisp / cum_CP_CRE as pct_cum_CP_CRE_misshisp "Cumulative Percent CRE in Quarter: Missing Hispanic" format percent10.1 ,
-	cum_c_auris_hisp / cum_CAURIS as pct_cum_c_auris_hisp "Cumulative Percent C. auris in Quarter: Hispanic" format percent10.1 ,
-	cum_c_auris_nohisp / cum_CAURIS as pct_cum_c_auris_nohisp "Cumulative Percent C. auris in Quarter: Not Hispanic" format percent10.1 ,
-	cum_c_auris_unkhisp / cum_CAURIS as pct_cum_c_auris_unkhisp "Cumulative Percent C. auris in Quarter: Unknown Hispanic" format percent10.1 ,
-	cum_c_auris_mishisp / cum_CAURIS as pct_cum_c_auris_mishisp "Cumulative Percent C. auris in Quarter: Missing Hispanic" format percent10.1 ,
-	cum_CP_CRE_male / cum_CP_CRE as pct_cum_CP_CRE_male "Cumulative Percent CRE in Quarter: Male" format percent10.1 ,
-	cum_CP_CRE_female / cum_CP_CRE as pct_cum_CP_CRE_female "Cumulative Percent CRE in Quarter: Female" format percent10.1 ,
-	cum_CP_CRE_sexmiss / cum_CP_CRE as pct_cum_CP_CRE_sexmiss "Cumulative Percent CRE in Quarter: Missing" format percent10.1 ,
-	cum_c_auris_male / cum_CAURIS as pct_cum_c_auris_male "Cumulative Percent C. auris in Quarter: Male" format percent10.1 ,
-	cum_c_auris_female / cum_CAURIS as pct_cum_c_auris_female "Cumulative Percent C. auris in Quarter: Female" format percent10.1 ,
-	cum_c_auris_sexmiss / cum_CAURIS as pct_cum_c_auris_sexmiss "Cumulative Percent C. auris in Quarter: Missing Gender" format percent10.1 ,
-	cum_CRE_04 / cum_CP_CRE as pct_cum_CRE_04 "Cumulative Percent CRE in Quarter: Age 0-4" format percent10.1 ,
-	cum_CRE_0517 / cum_CP_CRE as pct_cum_CRE_0517 "Cumulative Percent CRE in Quarter: Age 5-17" format percent10.1 ,
-	cum_CRE_1824 / cum_CP_CRE as pct_cum_CRE_1824 "Cumulative Percent CRE in Quarter: Age 18-24" format percent10.1 ,
-	cum_CRE_2549 / cum_CP_CRE as pct_cum_CRE_2549 "Cumulative Percent CRE in Quarter: Age 25-49" format percent10.1 ,
-	cum_CRE_5064 / cum_CP_CRE as pct_cum_CRE_5064 "Cumulative Percent CRE in Quarter: Age 50-64" format percent10.1 ,
-	cum_CRE_65 / cum_CP_CRE as pct_cum_CRE_65 "Cumulative Percent CRE in Quarter: Age 65+" format percent10.1 ,
-	cum_CAURIS_04 / cum_CAURIS as pct_cum_CAURIS_04 "Cumulative Percent C. auris in Quarter: Age 0-4" format percent10.1 ,
-	cum_CAURIS_0517 / cum_CAURIS as pct_cum_CAURIS_0517 "Cumulative Percent C. auris in Quarter: Age 5-17" format percent10.1 ,
-	cum_CAURIS_1824 / cum_CAURIS as pct_cum_CAURIS_1824 "Cumulative Percent C. auris in Quarter: Age 18-24" format percent10.1 ,
-	cum_CAURIS_2549 / cum_CAURIS as pct_cum_CAURIS_2549 "Cumulative Percent C. auris in Quarter: Age 25-49" format percent10.1 ,
-	cum_CAURIS_5064 / cum_CAURIS as pct_cum_CAURIS_5064 "Cumulative Percent C. auris in Quarter: Age 50-64" format percent10.1 ,
-	cum_CAURIS_65 / cum_CAURIS as pct_cum_CAURIS_65 "Cumulative Percent C. auris in Quarter: Age 65+" format percent10.1 
-
-
-
-from combine_cum_demo
-	where testreportqtr <= "&qtr_dte."d
-	order by testreportqtr
-
-;
-quit;
-
-
 
 /*Now we have individual tables AND a combined table of values for basic demographics and health equity questions*/
 
@@ -867,7 +672,6 @@ run;
 
 
 
-
 /*separate label for health equity density labels*/
 data hlth_equity_density_month_2;
 set hlth_equity_density_month;
@@ -889,17 +693,13 @@ run;
 
 
 /*Some demographic plot label recodes*/
-
 data plots;
-set disease_sum;
-
-
 length label_eth $12.;
 length label_eth_2 $12.;
-
-	if type in ("STRA") then delete;
+	set disease_sum;
 
 	most_recent = max(EVENT_DATE);
+
 
 	Label_class = Type;
 	if most_recent < "01dec&year_dte."d then
@@ -932,8 +732,6 @@ run;
 
 
 
-
-
 /*Always take a look at the tables we're creating*/
 /*For our table creation, it is easiest to make a table that looks like this:
 
@@ -952,12 +750,10 @@ To do this we'll transpose into one big table and use excel to make them look be
 It's a bit messy but it works for what we're doing here.
 */
 
-
 data transpose_prep;
 set equity_combine_cum (drop =  mdro_rural  mdro_NONrural mdro_rural_IR mdro_NONrural_IR mdro_svi_HI mdro_svi_LO
 								sum_hosp_y sum_hosp_n sum_hosp_unkmiss sum_hce_acute sum_hce_ltc sum_hce_no sum_hce_ltach mdro_sviHI_IR
-								sum_hce_surg sum_hce_unk sum_hce_miss sum_travel_y sum_travel_n sum_travel_u sum_travel_m screenevnt_y 
-								mdro_sviLO_IR screenevnt_n screenevnt_miss);
+								sum_hce_surg sum_hce_unk sum_hce_miss sum_travel_y sum_travel_n sum_travel_u sum_travel_m mdro_sviLO_IR);
 run;
 
 proc transpose data=transpose_prep out=equity_transpose;
@@ -969,9 +765,9 @@ run;
 
 data transpose_prep_pcts;
 set qtr_percent_equity (drop =  mdro_rural  mdro_NONrural sum_hosp_y sum_hosp_n sum_hosp_unkmiss sum_hce_acute sum_hce_ltc sum_hce_no sum_hce_ltach sum_hce_surg sum_hce_unk mdro_svi_LO mdro_svi_HI
-								sum_hce_miss sum_travel_y sum_travel_n sum_travel_u sum_travel_m screenevnt_y screenevnt_n screenevnt_miss cum_mdro_rural cum_mdro_NONrural mdro_NONrural_IR 
+								sum_hce_miss sum_travel_y sum_travel_n sum_travel_u sum_travel_m  cum_mdro_rural cum_mdro_NONrural mdro_NONrural_IR 
 								mdro_rural_IR cum_sum_hosp_y cum_sum_hosp_n cum_sum_hosp_unkmiss cum_sum_hce_acute cum_sum_hce_ltc cum_sum_hce_no cum_sum_hce_ltach cum_sum_hce_surg cum_sum_hce_unk cum_sum_hce_miss 
-								cum_sum_travel_y cum_sum_travel_n cum_sum_travel_u cum_sum_travel_m cum_sum_screenevnt_y cum_sum_screenevnt_n cum_sum_screenevnt_miss cum_mdro_svi_LO cum_mdro_svi_HI mdro_sviHI_IR mdro_sviLO_IR);
+								cum_sum_travel_y cum_sum_travel_n cum_sum_travel_u cum_sum_travel_m cum_mdro_svi_LO cum_mdro_svi_HI mdro_sviHI_IR mdro_sviLO_IR);
 
 run;
 
@@ -1000,55 +796,108 @@ select
 from equity_transpose_pcts 
 ;
 quit;
+/*Separated out IR quarterly code for specific edits as necessary, should run without touching unless updates are needed to denominators, values, etc.*/
+%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Reports\MDRO_IR_quarterly.sas";
 
-%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\MDRO_IR_quarterly.sas";
-
-
+/*Transpose IR*/
 proc transpose data=combine_qtr_IR out=demo_transpose_IR;
     id testreportqtr;
 	format &qtr_end_transpose 10.3;
 
 run;
-
-data transpose_prep_demo;
-set combine_cum_demo (drop = CP_CRE c_auris cum_CP_CRE cum_CAURIS CRE_w CRE_b CRE_a CRE_nhpi CRE_oth CRE_unk CRE_aian CRE_miss c_auris_w c_auris_b c_auris_a c_auris_nhpi
-							 c_auris_oth c_auris_unk c_auris_aian c_auris_miss CP_CRE_hisp CP_CRE_nohisp CP_CRE_unkhisp CP_CRE_misshisp c_auris_hisp c_auris_nohisp c_auris_unkhisp
-							 c_auris_mishisp CP_CRE_male CP_CRE_female CP_CRE_sexmiss c_auris_male CRE_2549 CRE_5064 c_auris_female c_auris_sexmiss CRE_04 CRE_0517 CRE_1824
-							 CRE_65 CAURIS_04 CAURIS_0517 CAURIS_1824 CAURIS_2549 CAURIS_5064 CAURIS_65);
-run;
-
-proc transpose data=transpose_prep_demo out=demo_transpose;
-	id testreportqtr;
+/*Transpose case counts*/
+proc transpose data=combine_cum_demo out=demo_transpose; 
+	id testreportqtr ;
+		
 
 run;
 
+data demo_transpose_2;
+set demo_transpose;
+	if _NAME_ in ('CP_CRE',
+'c_auris',
+'mdro_count',
+'cum_CP_CRE',
+'cum_CAURIS',
+'cum_mdro_count'/*,
+'MDRO_w',
+'MDRO_b',
+'MDRO_a',
+'MDRO_nhpi',
+'MDRO_oth',
+'MDRO_unk',
+'MDRO_aian',
+'MDRO_miss',
+'MDRO_hisp',
+'MDRO_nohisp',
+'MDRO_unkhisp',
+'MDRO_misshisp',
+'MDRO_male',
+'MDRO_female',
+'MDRO_sexmiss',
+'MDRO_04',
+'MDRO_0517',
+'MDRO_1824',
+'MDRO_2549',
+'MDRO_5064',
+'MDRO_65'*/
+) then delete;
+run;
+proc print data=demo_transpose_2;run;
+
+/*Create a fun lil macro to create CRE Mechanism percentages:
+		basically this takes the cumulative total of CRE and uses it as the denominator to calculate the percentage.
+		pretty niche use case but it's helpful here and you can use different column names to create different percentages based on the disease without re-writing a bunch of shit up top
+*/
+proc sql noprint;
+ select cum_mdro_count into :tot_cre
+
+	from combine_cum_demo
+ where testreportqtr in ("&qtr_dte"D);
+
+quit;
+%put &tot_cre;
 
 proc sql;
 create table demo_transpose_final as
 select 
 
 	_LABEL_ as risk_factor 'Demographic Classification',
-	&qtr_end_transpose as &qtr_num "&qtr_num. Count"
+	&qtr_end_transpose as &qtr_num "&qtr_num. Count",
+	case when _LABEL_  like '%Cumulative Mechanism%' then (&qtr_end_transpose / &tot_cre) else . end as mech_pct format percent10.0 /*put your constant of  CRE/cases here if applicable, looking for a better way to do this piece....*/
 
-from demo_transpose;
-
+from demo_transpose_2;
 
 create table demo_transpose_IR_final as
 select
 
 	_LABEL_ as demographic 'Demographic Classification',
-	&qtr_end_transpose as &qtr_num "&qtr_num. IR/100k"
+	&qtr_end_transpose as &qtr_num "&qtr_num. IR/100k",
+	/*add CI*/
 
+	case when &qtr_end_transpose not in (0) then (STDERR(&qtr_end_transpose)) else . end as std_err "Standard error", /*Display 0 values as missing/. so they don't confuse you on the table*/
+	(&qtr_end_transpose + (1.96*(calculated std_err))) as uCL "Upper confidence limit" format 10.2,
+	(&qtr_end_transpose - (1.96*(calculated std_err))) as lCL "Lower confidence limit" format 10.2
 
 from demo_transpose_IR 
 ;
+/*Don't need standard error beyond this point*/
+	alter table demo_transpose_IR_final
+	drop std_err;
+
 quit;
+
+proc print data=demo_transpose_final noobs label;run;
+
+proc print data=demo_transpose_IR_final noobs label;run;
+
+
 
 /*Export transposed tables to create template tables here. No need to save datasets at this point*/
 
 title; footnote;
 /*Set your output pathway here*/
-ods excel file="C:\Users\mhoskins1\Desktop\Work Files\MDRO_Tables.xlsx";*<----- Named a generic overwriteable name so we can continue to reproduce and autopopulate a template;
+ods excel file="C:\Users\mhoskins1\Desktop\Work Files\&disease._Tables_&sysdate..xlsx";*<----- Named a generic overwriteable name so we can continue to reproduce and autopopulate a template;
 
 
 title justify=left height=10pt font='Helvetica' "&year_dte. Demo Case counts/IRs through &qtr_num.";
@@ -1069,75 +918,97 @@ ods excel options (sheet_interval = "now" sheet_name = "svi density" embedded_ti
 proc print data=equRace_transp_final noobs label;run;
 proc print data=equIR_transp_final noobs label;run;
 
+ods excel options (sheet_interval="now" sheet_name = "statsig" embedded_titles = 'Yes');
+
+/*SVI by each race: does the proportion of each race differ significantly whether they are in a high or low SVI area?*/
+proc freq data=report_statsig;
+title 'Race= White';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('White');
+run;
+
+ods excel options (sheet_interval="none" embedded_titles = 'Yes');
+
+/*SVI high vs low and Rural vs. Non-rural stat sig against "event" where "event" is high or rural*/
+proc freq data=report_statsig;
+title 'SVI hi vs. low';
+	tables svi/binomial(p=0.5 level='1');
+run;
+
+/*Remember '0' = Rural*/
+proc freq data=report_statsig;
+title 'Rural vs. Non-rural res.';
+	tables density/binomial(p=0.5 level='0');
+run;
+
+/*SVI by race*/
+proc freq data=report_statsig;
+title 'Race= Black or African American';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Black or African American');
+run;
+proc freq data=report_statsig;
+title 'Race= Other';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Other');
+run;
+proc freq data=report_statsig;
+title 'Race= Unknown';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Unknown');
+run;
+proc freq data=report_statsig;
+title 'Race= Asian';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('Asian');
+run;
+proc freq data=report_statsig;
+title 'Race= American Indian Alaska Native';
+	tables svi /binomial(p=0.5 level='1');
+		where RACE1 in ('American Indian Alaskan Native');
+run;
+
+/*Density by each race: does the proportion of each race differ significantly whether they are in a rural or nonrural area?*/
+proc freq data=report_statsig;
+title 'Race= White';
+	tables density /binomial(p=0.5 level='0');/*level = '0' here because rural density = 0 and that is our measuring point*/
+		where RACE1 in ('White');
+run;
+proc freq data=report_statsig;
+title 'Race= Black or African American';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Black or African American');
+run;
+proc freq data=report_statsig;
+title 'Race= Other';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Other');
+run;
+proc freq data=report_statsig;
+title 'Race= Unknown';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Unknown');
+run;
+proc freq data=report_statsig;
+title 'Race= Asian';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('Asian');
+run;
+proc freq data=report_statsig;
+title 'Race= American Indian Alaska Native';
+	tables density /binomial(p=0.5 level='0');
+		where RACE1 in ('American Indian Alaskan Native');
+run;
 ods excel close;
-
-
-/*Export tables as data sets for next steps*/
-data SASdata.final_combined_mechanism;
-set final_combined_mechanism;
-run;
-
-data SASdata.final_combined_race;
-set final_combined_race;
-run;
-
-data SASdata.final_combined_eth;
-set final_combined_eth;
-run;
-
-data SASdata.final_combined_gender;
-set final_combined_gender;
-run;
-
-data SASdata.final_combined_age;
-set final_combined_age;
-run;
-
-/*Equity*/
-data SASdata.equity_final_pcts;
-set equity_final_pcts;
-run;
-
-
-/*Totals*/
-
-data SASdata.disease_sum;
-set disease_sum;
-run;
-
-data SASdata.county_sum;
-set county_sum;
-run;
-
-/*Plots*/
-
-/*Demographic*/
-data SASdata.plots ;
-set plots;
-run;
-
-data SASdata.equity_plots;
-set equity_plots;
-run;
-
-/*Equity*/
-
-data SASdata.equity_final_pcts ;
-set equity_final_pcts;
-run;
-
-data SASdata.hlth_equity_density_month_2 ;
-set hlth_equity_density_month_2;
-run;
-
 
 
 /*Last thing:*/
 /*Autorun the bar graph macro*/
-%include "T:\HAI\Code library\Epi curve example\SAS Codes\MDRO_quarterly report_bar graph macro.sas";
+%include "T:\HAI\Code library\Epi curve example\SAS Codes\Reports\MDRO_quarterly report_bar graph macro.sas";
 
 
 
-/*Done!*/
+/*Fin!*/
+
 
 
