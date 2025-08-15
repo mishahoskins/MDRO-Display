@@ -4,14 +4,18 @@
 options compress=yes;
 options nofmterr;
 title;footnote;
+
+/*Clear results from prior code*/
+dm 'odsresults; clear';
+
 /*Health Equity Cleaning, New Variables*/
-
-
 data analysis;
 
 set SASdata.healthequitySAS;
+
+
 /*First thing here is to confine to the disease we want to run, defined in MACRO, it will determine what our output reflects: CRE, CAURIS, or STRA (GAS)*/
-	if type not in ("&disease") then delete; /*Runs only the disease you specify*/
+	if type not in ("&disease") then delete;/*Runs only the disease you specify*/
 	/*Rurality
 			1=non-rural
 			0=rural
@@ -93,10 +97,10 @@ select
 		intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
 	/*MDRO travel*/
-	sum (case when type in ('CRE','CAURIS') and travel in ('Yes') then 1 else 0 end) as sum_travel_y "MDRO in Quarter, Travel: Yes",
-	sum (case when type in ('CRE','CAURIS') and travel in ('No') then 1 else 0 end) as sum_travel_n "MDRO in Quarter, Travel: No",
-	sum (case when type in ('CRE','CAURIS') and travel in ('Unknown') then 1 else 0 end) as sum_travel_u "MDRO in Quarter, Travel: Unknown",
-	sum (case when type in ('CRE','CAURIS') and travel in (' ') then 1 else 0 end) as sum_travel_m "MDRO in Quarter, Travel: Missing"
+	sum (case when /*type in ('CRE','CAURIS') and*/ travel in ('Yes') then 1 else 0 end) as sum_travel_y "MDRO in Quarter, Travel: Yes",
+	sum (case when /*type in ('CRE','CAURIS') and*/ travel in ('No') then 1 else 0 end) as sum_travel_n "MDRO in Quarter, Travel: No",
+	sum (case when /*type in ('CRE','CAURIS') and*/ travel in ('Unknown') then 1 else 0 end) as sum_travel_u "MDRO in Quarter, Travel: Unknown",
+	sum (case when/*type in ('CRE','CAURIS') and*/ travel in (' ') then 1 else 0 end) as sum_travel_m "MDRO in Quarter, Travel: Missing"
 
 
 from analysis
@@ -315,13 +319,25 @@ quit;
 
 
 /*Now tables for race and mechanism*/
+proc sql;
+create table records as
+select *,
 
-data records;
-set SASdata.recordssas;
-	if type not in ("&disease") then delete;
+	case
+			when (RACE1 = 'Other' or RACE2 ne '' or RACE3 ne '' or RACE4 ne '' or RACE5 ne '' or RACE6 ne '')  then "Other"
+			when RACE1='Asian' then 'Asian or Native Hawaiian or Pacific Islander'
+			when RACE1='Native Hawaiian or Pacific Islander' then 'Asian or Native Hawaiian or Pacific Islander'
+			else RACE1
 
-		where  EVENT_DATE >= "01jan2024"d and  EVENT_DATE <= "&qtr_dte"d;
-run;
+		end as race_new
+
+from SASdata.recordssas
+	where  EVENT_DATE >= "01jan2024"d and  EVENT_DATE <= "&qtr_dte"d
+;
+
+
+quit;
+
 
 
 proc sql;
@@ -402,6 +418,7 @@ set disease_counts_qtr;
 
 run;
 /*Race*/
+proc freq data=records; tables race_new / norow nocol nopercent;run;
 proc sql;
 create table disease_counts_qtr_race as
 select
@@ -409,14 +426,13 @@ select
 	intnx("qtr", (EVENT_DATE), 0, "end") as testreportqtr "Quarter Ending Date" format=date11.,
 
 /*MDRO by race*/
-	sum (case when RACE1 in ('White') then 1 else 0 end) as MDRO_w "MDRO in Quarter, Race: White",	
-	sum (case when RACE1 in ('Black or African American') then 1 else 0 end) as MDRO_b "MDRO in Quarter, Race: Black or African American",
-	sum (case when RACE1 in ('Asian') then 1 else 0 end) as MDRO_a "MDRO in Quarter, Race: Asian",
-	sum (case when RACE1 in ('Native Hawaiian or Pacific Islander') then 1 else 0 end) as MDRO_nhpi "MDRO in Quarter, Race: Native Hawaiian or Pacific Islander",
-	sum (case when RACE1 in ('Other') then 1 else 0 end) as MDRO_oth "MDRO in Quarter, Race: Other",
-	sum (case when RACE1 in ('Unknown') then 1 else 0 end) as MDRO_unk "MDRO in Quarter, Race: Unknown",
-	sum (case when RACE1 in ('American Indian Alaskan Native') then 1 else 0 end) as MDRO_aian "MDRO in Quarter, Race: American Indian Alaskan Native",
-	sum (case when RACE1 in (' ') then 1 else 0 end) as MDRO_miss "MDRO in Quarter, Race: Missing"
+	sum (case when race_new in ('White') then 1 else 0 end) as MDRO_w "MDRO in Quarter, Race: White",	
+	sum (case when race_new in ('Black or African American') then 1 else 0 end) as MDRO_b "MDRO in Quarter, Race: Black or African American",
+	sum (case when race_new in ('Asian or Native Hawaiian or Pacific Islander') then 1 else 0 end) as MDRO_a "MDRO in Quarter, Race: Asian/NH/PI",
+	sum (case when race_new in ('Other') then 1 else 0 end) as MDRO_oth "MDRO in Quarter, Race: Other",
+	sum (case when race_new in ('Unknown') then 1 else 0 end) as MDRO_unk "MDRO in Quarter, Race: Unknown",
+	sum (case when race_new in ('American Indian Alaskan Native') then 1 else 0 end) as MDRO_aian "MDRO in Quarter, Race: American Indian Alaskan Native",
+	sum (case when race_new in (' ') then 1 else 0 end) as MDRO_miss "MDRO in Quarter, Race: Missing"
 
 from records
 group by testreportqtr
@@ -458,8 +474,11 @@ select
 
 
 	/*MDRO by Age Group*/
-	sum(case when 0 LE age LT 5 then 1 else 0 end) as MDRO_04 label='MDRO in Quarter: Age 0-4',
+	/*sum(case when 0 LE age LT 5 then 1 else 0 end) as MDRO_04 label='MDRO in Quarter: Age 0-4',
 	sum(case when 5 LE age LT 18 then 1 else 0 end) as MDRO_0517 label='MDRO in Quarter: Age 5-17',
+	*/
+	/*New age group pediatric <18*/
+	sum(case when 0 LE age LT 18 then 1 else 0 end) as MDRO_0017 label='MDRO in Quarter: Pediatric 0-17',
 	sum(case when 18 LE age LT 25 then 1 else 0 end) as MDRO_1824 label='MDRO in Quarter: Age 18-24',
 	sum(case when 25 LE age LT 50 then 1 else 0 end) as MDRO_2549 label='MDRO in Quarter: Age 25-49',
 	sum(case when 50 LE age LT 65 then 1 else 0 end) as MDRO_5064 label='MDRO in Quarter: Age 50-64',
@@ -482,14 +501,13 @@ select
 	sum (case when mechanism in ('Other') then 1 else 0 end) as mech_Oth "Mechanism: Other",
 	sum (case when mechanism in ('IMP') then 1 else 0 end) as mech_IMP "Mechanism: IMP",
 	sum (case when mechanism in ('VIM') then 1 else 0 end) as mech_VIM "Mechanism: VIM",
-	sum (case when mechanism in ('Missing') then 1 else 0 end) as mech_miss "Mechanism: Missing"
+	sum (case when mechanism in ('Missing' ,'') then 1 else 0 end) as mech_miss "Mechanism: Missing"
 
 from records
 group by testreportqtr
 ;
 
 quit;
-
 /*Merge all datasets and confine to dates we want to look at by qtr*/
 
 data mech_race_combine;
@@ -525,7 +543,8 @@ set mech_race_combine;
 	cum_MDRO_sexmiss+MDRO_sexmiss;
 	
 	cum_MDRO_04+MDRO_04;
-	cum_MDRO_0517+MDRO_0517;
+	/*cum_MDRO_0517+MDRO_0517; *add pediatric*/
+	cum_MDRO_0017+MDRO_0017;
 	cum_MDRO_1824+MDRO_1824;
 	cum_MDRO_2549+MDRO_2549;
 	cum_MDRO_5064+MDRO_5064;
@@ -546,7 +565,6 @@ set mech_race_combine;
 		label cum_MDRO_w= "Cumulative MDRO in Quarter, Race: White";
 		label cum_MDRO_b= "Cumulative MDRO in Quarter, Race: Black or African American";
 		label cum_MDRO_a= "Cumulative MDRO in Quarter, Race: Asian";
-		label cum_MDRO_nhpi= "Cumulative MDRO in Quarter, Race: Native Hawaiian or Pacific Islander";
 		label cum_MDRO_oth= "Cumulative MDRO in Quarter, Race: Other";
 		label cum_MDRO_unk= "Cumulative MDRO in Quarter, Race: Unknown";
 		label cum_MDRO_aian= "Cumulative MDRO in Quarter, Race: American Indian Alaskan Native";
@@ -562,7 +580,8 @@ set mech_race_combine;
 		label cum_MDRO_sexmiss= "Cumulative MDRO in Quarter: Missing";
 
 		label cum_MDRO_04= "Cumulative MDRO in Quarter: Age 0-4";
-		label cum_MDRO_0517= "Cumulative MDRO in Quarter: Age 5-17";
+		/*label cum_MDRO_0517= "Cumulative MDRO in Quarter: Age 5-17";*/ *add pediatric;
+		label cum_MDRO_0017= "Cumulative MDRO in Quarter: Pediatric 0-17";
 		label cum_MDRO_1824= "Cumulative MDRO in Quarter: Age 18-24";
 		label cum_MDRO_2549= "Cumulative MDRO in Quarter: Age 25-49";
 		label cum_MDRO_5064= "Cumulative MDRO in Quarter: Age 50-64";
@@ -696,6 +715,9 @@ run;
 data plots;
 length label_eth $12.;
 length label_eth_2 $12.;
+length label_mech $12.;
+length trav_mech $16.;
+
 	set disease_sum;
 
 	most_recent = max(EVENT_DATE);
@@ -727,10 +749,16 @@ length label_eth_2 $12.;
 	if most_recent <"01dec&year_dte."d then
 		label_agegrp = " ";
 
+	label_mech = mechanism;
+	if mechanism = ''  then label_mech = "Missing";
+
+	trav_mech = travel;
+	if travel = ''  then trav_mech = "Missing";
+
 
 run;
 
-
+proc freq data=plots;tables travel trav_mech;run;
 
 /*Always take a look at the tables we're creating*/
 /*For our table creation, it is easiest to make a table that looks like this:
@@ -805,6 +833,7 @@ proc transpose data=combine_qtr_IR out=demo_transpose_IR;
 	format &qtr_end_transpose 10.3;
 
 run;
+
 /*Transpose case counts*/
 proc transpose data=combine_cum_demo out=demo_transpose; 
 	id testreportqtr ;
@@ -887,6 +916,9 @@ from demo_transpose_IR
 
 quit;
 
+
+
+
 proc print data=demo_transpose_final noobs label;run;
 
 proc print data=demo_transpose_IR_final noobs label;run;
@@ -920,84 +952,6 @@ proc print data=equIR_transp_final noobs label;run;
 
 ods excel options (sheet_interval="now" sheet_name = "statsig" embedded_titles = 'Yes');
 
-/*SVI by each race: does the proportion of each race differ significantly whether they are in a high or low SVI area?*/
-proc freq data=report_statsig;
-title 'Race= White';
-	tables svi /binomial(p=0.5 level='1');
-		where RACE1 in ('White');
-run;
-
-ods excel options (sheet_interval="none" embedded_titles = 'Yes');
-
-/*SVI high vs low and Rural vs. Non-rural stat sig against "event" where "event" is high or rural*/
-proc freq data=report_statsig;
-title 'SVI hi vs. low';
-	tables svi/binomial(p=0.5 level='1');
-run;
-
-/*Remember '0' = Rural*/
-proc freq data=report_statsig;
-title 'Rural vs. Non-rural res.';
-	tables density/binomial(p=0.5 level='0');
-run;
-
-/*SVI by race*/
-proc freq data=report_statsig;
-title 'Race= Black or African American';
-	tables svi /binomial(p=0.5 level='1');
-		where RACE1 in ('Black or African American');
-run;
-proc freq data=report_statsig;
-title 'Race= Other';
-	tables svi /binomial(p=0.5 level='1');
-		where RACE1 in ('Other');
-run;
-proc freq data=report_statsig;
-title 'Race= Unknown';
-	tables svi /binomial(p=0.5 level='1');
-		where RACE1 in ('Unknown');
-run;
-proc freq data=report_statsig;
-title 'Race= Asian';
-	tables svi /binomial(p=0.5 level='1');
-		where RACE1 in ('Asian');
-run;
-proc freq data=report_statsig;
-title 'Race= American Indian Alaska Native';
-	tables svi /binomial(p=0.5 level='1');
-		where RACE1 in ('American Indian Alaskan Native');
-run;
-
-/*Density by each race: does the proportion of each race differ significantly whether they are in a rural or nonrural area?*/
-proc freq data=report_statsig;
-title 'Race= White';
-	tables density /binomial(p=0.5 level='0');/*level = '0' here because rural density = 0 and that is our measuring point*/
-		where RACE1 in ('White');
-run;
-proc freq data=report_statsig;
-title 'Race= Black or African American';
-	tables density /binomial(p=0.5 level='0');
-		where RACE1 in ('Black or African American');
-run;
-proc freq data=report_statsig;
-title 'Race= Other';
-	tables density /binomial(p=0.5 level='0');
-		where RACE1 in ('Other');
-run;
-proc freq data=report_statsig;
-title 'Race= Unknown';
-	tables density /binomial(p=0.5 level='0');
-		where RACE1 in ('Unknown');
-run;
-proc freq data=report_statsig;
-title 'Race= Asian';
-	tables density /binomial(p=0.5 level='0');
-		where RACE1 in ('Asian');
-run;
-proc freq data=report_statsig;
-title 'Race= American Indian Alaska Native';
-	tables density /binomial(p=0.5 level='0');
-		where RACE1 in ('American Indian Alaskan Native');
 run;
 ods excel close;
 
@@ -1009,6 +963,3 @@ ods excel close;
 
 
 /*Fin!*/
-
-
-

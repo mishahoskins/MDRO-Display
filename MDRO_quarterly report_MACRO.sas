@@ -73,9 +73,9 @@ options nofmterr;
 title;footnote;
 
 /*Macros -- Don't update these*/
-libname denorm '\\10.19.201.242\denormal\20250502'; /*This can be updated as needed to produce most recent counts; M. Hilton provides a new extract monthly*/
+libname denorm '\\10.19.201.242\denormal\20250701'; /*This can be updated as needed to produce most recent counts; M. Hilton provides a new extract monthly*/
 libname SASdata 'T:\HAI\Code library\Epi curve example\SASData'; /*SAS datasets location*/
-%let ncedssdata = T:\HAI\Code library\Epi curve example/ncedss extracts;*<----- Pathway to NCEDSS extracts for additional data (do not need to update);
+%let ncedssdata = T:\HAI\Code library\Epi curve example\ncedss extracts;*<----- Pathway to NCEDSS extracts for additional data (do not need to update);
 
 /*Macros -- Update these*/
 /*Disease macro: Update for each MDRO , CRE, CAURIS, GAS (STRA in the macro)*/
@@ -122,6 +122,7 @@ Should only need to update these once per year.
 /*Age pop.*/
 %let age_04 = 609770;
 %let age_0517 = 1690945;
+%let ped_0017 = (609770 + 1690945);
 %let age_1824 = 990587;
 %let age_2549 = 3408095;
 %let age_5064 = 2037593;
@@ -181,8 +182,8 @@ Description of EDRC (Economically Disadvantaged Rural Communities) : https://fil
 
 
 /*Run other codes to create outputs*/
-%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part I_MDRO_quarterly report.sas";
-%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part II_MDRO_quarterly report_condensed.sas";/*Incidence rate codev and bar graph embedded in Part II*/
+%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Reports\Part I_MDRO_quarterly report.sas";
+%INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Reports\Part II_MDRO_quarterly report.sas";/*Incidence rate codev and bar graph embedded in Part II*/
 
 																								/*Note: MUST run ALL of Part II in order for the bar graph macro to properly run*/
 /*As of Version 3.1 we don't run these no mapping no long-form tables*/
@@ -190,5 +191,3 @@ Description of EDRC (Economically Disadvantaged Rural Communities) : https://fil
 %INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part III_MDRO_quarterly report.sas";
 %INCLUDE "T:\HAI\Code library\Epi curve example\SAS Codes\Part IV_MDRO_quarterly report.sas";
 */
-
-
